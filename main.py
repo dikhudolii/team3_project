@@ -54,6 +54,7 @@ def get_user_role(phone_number):
 
     return None
 
+
 def get_apart_num(phone_number):
     blacklisted_data, tenants_data, admin_guard_data = get_data_from_spreadsheet()
 
