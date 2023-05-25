@@ -37,6 +37,18 @@ def get_debt_data_from_spreadsheet():
     return debt_data
 
 
+def add_to_blacklist(number):
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.get_worksheet('blacklisted_numbers')
+    worksheet.append_row([number])
+
+
+def add_admin(number, role):
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.get_worksheet('admin_guard')
+    worksheet.append_row([number, role])
+
+
 def get_user_role(phone_number):
     blacklisted_data, tenants_data, admin_guard_data = get_data_from_spreadsheet()
 
@@ -73,7 +85,13 @@ def check_debt(apartment_num):
 
 def initial_user_interface(role):
     if role == 'admin':
-        pass
+        message = 'Виберіть дію з нижчеподаних опцій:'
+        keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+        button_add_blacklisted = types.KeyboardButton(text="Додати номер у blacklist")
+        button_add_admin = types.KeyboardButton(text="Додати нового адміна/охоронця")
+        keyboard.add(button_add_admin)
+        keyboard.add(button_add_blacklisted)
+        return message, keyboard
     if role == 'guard':
         pass
     if role == 'tenant':
@@ -115,6 +133,7 @@ def telegram_bot(token_value):
             answer = initial_user_interface(role)
             bot.send_message(message.chat.id, answer)
 
+
     @bot.message_handler(content_types=['contact'])
     def handle_contact(message):
         contact = message.contact
@@ -123,6 +142,7 @@ def telegram_bot(token_value):
         role = get_user_role(phone_number)
         answer = initial_user_interface(role)
         bot.send_message(message.chat.id, answer)
+
 
     @bot.message_handler(content_types=['photo'])
     def handle_photo(message):
@@ -145,7 +165,49 @@ def telegram_bot(token_value):
 
         bot.send_message(message.chat.id, help_message)
 
-        bot.infinity_polling()  # start endless loop of receiving new messages from Telegram
+
+    @bot.message_handler(func=lambda message: message.text == 'Додати номер у blacklist')
+    def handle_blacklist_add(message):
+        msg = 'Будь ласка, введіть номер, який потрібно додати до blacklist у форматі: /blacklist [номер]'
+        bot.send_message(message.chat.id, msg)
+
+
+    @bot.message_handler(func=lambda message: message.text == 'Додати нового адміна/охоронця')
+    def handle_admin_add(message):
+        msg = 'Будь ласка, введіть номер та роль нового користувача у форматі: /admin [номер] [роль]'
+        bot.send_message(message.chat.id, msg)
+
+    @bot.message_handler(commands=['blacklist'])
+    def handle_blacklist_add_command(message):
+        try:
+            parts = message.text.split()
+            if len(parts) != 2:
+                raise ValueError
+            number = parts[1]
+            # Перевіряємо, чи є number коректним номером телефону.
+            # Якщо все в порядку, додаємо номер до blacklist
+            add_to_blacklist(number)
+            bot.send_message(message.chat.id, "Номер успішно додано до blacklist!")
+        except ValueError:
+            bot.send_message(message.chat.id, "Некоректний формат. Будь ласка, введіть номер у форматі /blacklist [номер]")
+
+    @bot.message_handler(commands=['admin'])
+    def handle_admin_add_command(message):
+        try:
+            parts = message.text.split()
+            if len(parts) != 3:
+                raise ValueError
+            number = parts[1]
+            role = parts[2]
+            # Перевіряємо, чи є number коректним номером телефону, і чи є role валідною роллю.
+            # Якщо все в порядку, додаємо номер і роль до  листа admin_guard
+            add_admin(number, role)
+            bot.send_message(message.chat.id, "Новий адмін/охоронець успішно доданий!")
+        except ValueError:
+            bot.send_message(message.chat.id,
+                             "Некоректний формат. Будь ласка, введіть дані у форматі /admin [номер] [роль]")
+
+    bot.infinity_polling()  # start endless loop of receiving new messages from Telegram
 
 
 if __name__ == '__main__':
