@@ -4,6 +4,9 @@ class User:
         self.is_inhabitant = self._is_inhabitant()
         self.is_security = self._is_security()
 
+    def get_user_number(self):
+        return "380593539652"
+
     # need to implement
     def _is_inhabitant(self):
         return False
