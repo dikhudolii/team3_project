@@ -60,11 +60,11 @@ def get_user_role(phone_number):
             return "Blacklisted"
 
     for row in tenants_data:
-        if phone_number in row[1:6]:
+        if phone_number in list(map(str, row[3:9])):
             return "tenant"
 
     for i, row in enumerate(admin_guard_data):
-        if row[0] == phone_number:
+        if str(row[0]) == phone_number:
             return admin_guard_data[i][1]
 
     return None
@@ -74,7 +74,7 @@ def get_apart_num(phone_number):
     blacklisted_data, tenants_data, admin_guard_data = get_data_from_spreadsheet()
 
     for i, row in enumerate(tenants_data):
-        if phone_number in row[1:6]:
+        if phone_number in row[3:9]:
             return tenants_data[i][0]
 
 
@@ -98,7 +98,9 @@ def initial_user_interface(role):
     if role == 'guard':
         pass
     if role == 'tenant':
-        pass
+        return 'Ви мешканець дому, (Замість цього повідомлення має бути меню для мешканця)'
+
+    return 'Ви не маєте доступу до чат бота', None
 
 
 def telegram_bot(token_value):
@@ -165,11 +167,7 @@ def telegram_bot(token_value):
 
     @bot.message_handler(commands=['start'])
     def start(message):
-        contact = message.contact
-        phone_number = contact.phone_number
-
-        if phone_number is None:
-
+        if message.contact is None or message.contact.phone_number is None:
             keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
             button = types.KeyboardButton(text="Відправити свій контакт", request_contact=True)
             keyboard.add(button)
@@ -177,8 +175,9 @@ def telegram_bot(token_value):
             bot.send_message(message.chat.id,
                              "Натисніть кнопку 'Відправити контакт' для передачі свого особистого контакту.",
                              reply_markup=keyboard)
-
         else:
+            contact = message.contact
+            phone_number = str(contact.phone_number)
             role = get_user_role(phone_number)
 
             if role == 'tenant':
@@ -195,7 +194,7 @@ def telegram_bot(token_value):
     @bot.message_handler(content_types=['contact'])
     def handle_contact(message):
         contact = message.contact
-        phone_number = contact.phone_number
+        phone_number = str(contact.phone_number)
 
         role = get_user_role(phone_number)
         answer = initial_user_interface(role)
