@@ -5,17 +5,30 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses
 from Domain.user import User, get_user_by_id
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from gspread_formatting import get_data_validation_rule
+from google.oauth2.service_account import Credentials
 
 
 def get_spreadsheet():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    credentials = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+    credentials = Credentials.from_service_account_file('credentials.json', scopes=scope)
     client = gspread.authorize(credentials)
 
     spreadsheet_url = 'https://docs.google.com/spreadsheets/d/1ZnkTI5xrR0vDh5QWMyNEz4PWofWhMv-nc4oUyeEbkzQ/edit?usp=sharing'
     spreadsheet = client.open_by_url(spreadsheet_url)
     return spreadsheet
+
+
+def get_kpp_options_from_spreadsheet():
+    spreadsheet = get_spreadsheet()
+    kpp_data = spreadsheet.worksheet('Авто на пропуск')
+
+    rule = get_data_validation_rule(kpp_data, 'E2')
+
+    if rule:
+        return [value.userEnteredValue for value in rule.condition.values]
+
+    return None
 
 
 def get_data_from_spreadsheet():
@@ -198,6 +211,15 @@ def telegram_bot(token_value):
 
         role = get_user_role(phone_number)
         answer = initial_user_interface(role)
+
+        if role == 'tenant':
+            apartment_number = get_apart_num(phone_number)
+            debt = check_debt(apartment_number)
+
+            if debt > 240:
+                bot.send_message(message.chat.id,
+                                 f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
+
         bot.send_message(message.chat.id, answer)
 
 
@@ -268,6 +290,6 @@ def telegram_bot(token_value):
 
 
 if __name__ == '__main__':
-    telegram_bot(token)
-
-
+    # telegram_bot(token)
+    rules = get_kpp_options_from_spreadsheet()
+    print(rules)

@@ -1,17 +1,12 @@
 import gspread
-# from google.oauth2.service_account import Credentials
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
 from constants import CLAIM_SHEET_NAME, CLAIM_NUM, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM
 
 
 def get_spreadsheet():
-    # in case google.oauth2
-    # scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-    # credentials = Credentials.from_service_account_file('credentials.json', scopes=scopes)
-
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    credentials = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+    credentials = Credentials.from_service_account_file('credentials.json', scopes=scope)
     client = gspread.authorize(credentials)
 
     spreadsheet_url = 'https://docs.google.com/spreadsheets/d/1ZnkTI5xrR0vDh5QWMyNEz4PWofWhMv-nc4oUyeEbkzQ/edit?usp=sharing'
