@@ -8,7 +8,7 @@ CLAIM_CHECKPOINT = "КПП"
 CLAIM_DESCRIPTION = "Опис"
 CLAIM_CREATED_DATE = "Дата та час створення"
 CLAIM_PROCESSED_DATE = "Дата та час виконання"
-CLAIM_SECURITY_NUM = "Номер виконавця"
+CLAIM_SECURITY_NUM = "ПІБ виконавця"
 CLAIM_STATUS = "Статус"
 
 CLAIM_SHEET_NAME = "Авто на пропуск"
