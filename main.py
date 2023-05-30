@@ -300,6 +300,4 @@ def telegram_bot(token_value):
 
 
 if __name__ == '__main__':
-    # telegram_bot(token)
-    rules = get_kpp_options_from_spreadsheet()
-    print(rules)
+    telegram_bot(token)
