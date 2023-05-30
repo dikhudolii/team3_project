@@ -17,7 +17,8 @@ class ClaimTypes(Enum):
 
 class ClaimStatuses(Enum):
     New = "В процесі опрацювання"
-    Done = "Виконана"
+    Rejected = "Відхилено"
+    Done = "Виконано"
 
 
 class CheckpointTypes(Enum):
@@ -121,7 +122,12 @@ def cancel_claim(number):
     delete_claim(number)
 
 
-# REDO Insert security number/name
-def to_process_claim(number):
+def reject_claim(number, security_name):
     now = datetime.now()
-    update_claim(number, now.strftime(FORMAT_STRING), "+380669798753", ClaimStatuses.Done.value)
+    update_claim(number, now.strftime(FORMAT_STRING), security_name, ClaimStatuses.Rejected.value)
+
+
+# REDO Insert security number/name
+def to_process_claim(number, security_name):
+    now = datetime.now()
+    update_claim(number, now.strftime(FORMAT_STRING), security_name, ClaimStatuses.Done.value)

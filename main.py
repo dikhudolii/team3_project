@@ -2,7 +2,7 @@ from telebot import types
 from auth_file import token  # import token
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses
+from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses, reject_claim
 from Domain.user import User, get_user_by_id
 import gspread
 from gspread_formatting import get_data_validation_rule
@@ -126,16 +126,27 @@ def telegram_bot(token_value):
 
         match command:
             case "approve":
-                to_process_claim(claim_id)
+                to_process_claim(claim_id, call.from_user.full_name)
                 bot.send_message(call.message.chat.id,
-                                 f"Заявка успішно опрацьована {claim_id}")
+                                 f"Заявкy № {claim_id} опрацьовано")
+            case "reject":
+                reject_claim(claim_id, call.from_user.full_name)
+                bot.send_message(call.message.chat.id,
+                                 f"Заявку № {claim_id} відхилено ")
             case "cancel":
                 cancel_claim(claim_id)
                 bot.send_message(call.message.chat.id,
-                                 f"Ви успішно видалили заявку {claim_id}")
+                                 f"Ви успішно видалили заявку № {claim_id}")
             case "chat":
-                bot.send_message(call.message.chat.id, f"Start chat with inhabitant")
+                bot.send_message(call.message.chat.id, f"Чат з мешканцем. Потрібна реалізація")
 
+
+    '''
+    Handler for printing list of claims
+    If user is security than will be printed all claims by state New in case todayclaims
+    Or if user is inhabitant than will be printed only claims made by this inhabitant today in case todayclaims
+    Command claims suppose that it's a list of all stored claims
+    '''
     @bot.message_handler(commands=['allclaims', 'todayclaims'])  # handler for getting list of claims
     def get_list_of_claims(message):
         command = str(message.text).find("todayclaims") < 0
@@ -155,9 +166,11 @@ def telegram_bot(token_value):
                     markup_inline = InlineKeyboardMarkup()
                     item_approve = InlineKeyboardButton(text='Підтвердити',
                                                         callback_data=f"approve, {claim.number}")
+                    item_reject = InlineKeyboardButton(text='Відхилити',
+                                                        callback_data=f"reject, {claim.number}")
                     item_chat = InlineKeyboardButton(text='Чат з мешканцем',
-                                                     callback_data=f"chat, {claim.number, claim.phone_number}")
-                    markup_inline.add(item_approve, item_chat)
+                                                     callback_data=f"chat, {claim.number}")
+                    markup_inline.add(item_approve, item_reject, item_chat)
                     bot.send_message(message.chat.id,
                                      f"Заявка від {claim.phone_number}, {claim.type}",
                                      reply_markup=markup_inline)
@@ -198,11 +211,11 @@ def telegram_bot(token_value):
                 debt = check_debt(apartment_number)
 
                 if debt > 240:
-                    bot.send_message(message.chat.id, f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
+                    bot.send_message(message.chat.id,
+                                     f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
 
             answer = initial_user_interface(role)
             bot.send_message(message.chat.id, answer)
-
 
     @bot.message_handler(content_types=['contact'])
     def handle_contact(message):
@@ -222,11 +235,9 @@ def telegram_bot(token_value):
 
         bot.send_message(message.chat.id, answer)
 
-
     @bot.message_handler(content_types=['photo'])
     def handle_photo(message):
         bot.reply_to(message, "Дякуємо! Ваша квитанція на розгляді в адміністратора.")
-
 
     @bot.message_handler(commands=['help'])
     def help_(message):
@@ -244,12 +255,10 @@ def telegram_bot(token_value):
 
         bot.send_message(message.chat.id, help_message)
 
-
     @bot.message_handler(func=lambda message: message.text == 'Додати номер у blacklist')
     def handle_blacklist_add(message):
         msg = 'Будь ласка, введіть номер, який потрібно додати до blacklist у форматі: /blacklist [номер]'
         bot.send_message(message.chat.id, msg)
-
 
     @bot.message_handler(func=lambda message: message.text == 'Додати нового адміна/охоронця')
     def handle_admin_add(message):
@@ -268,7 +277,8 @@ def telegram_bot(token_value):
             add_to_blacklist(number)
             bot.send_message(message.chat.id, "Номер успішно додано до blacklist!")
         except ValueError:
-            bot.send_message(message.chat.id, "Некоректний формат. Будь ласка, введіть номер у форматі /blacklist [номер]")
+            bot.send_message(message.chat.id,
+                             "Некоректний формат. Будь ласка, введіть номер у форматі /blacklist [номер]")
 
     @bot.message_handler(commands=['admin'])
     def handle_admin_add_command(message):
