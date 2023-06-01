@@ -55,7 +55,7 @@ def get_data_from_spreadsheet():
 def get_debt_data_from_spreadsheet():
     spreadsheet = get_spreadsheet()
 
-    debt_data = spreadsheet.worksheet('debt').get_all_values()
+    debt_data = spreadsheet.worksheet('debt')
     return debt_data
 
 
@@ -112,7 +112,7 @@ def check_debt(apartment_num):
 
     for i, row in enumerate(debt_data):
         if apartment_num == row[0]:
-            return int(debt_data[i][16])
+            return int(debt_data[i][14])
 
 
 def initial_user_interface(role):
@@ -133,12 +133,6 @@ def initial_user_interface(role):
         return message, keyboard
     if role == 'tenant':
         apartment_number = get_apart_num(user.number)
-        debt = check_debt(apartment_number)
-
-        if debt < -240:
-            return f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.', \
-                None
-
         message = f"Вітаємо, {user.tg_name}. Ви є мешканцем квартири {apartment_number}. Оберіть одну з доступних опцій: "
         keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
         button_new = types.KeyboardButton(text="Створити заявку")
@@ -290,6 +284,15 @@ def telegram_bot(token_value):
             contact = message.contact
             phone_number = str(contact.phone_number)
             role = get_user_role(phone_number)
+
+            if role == 'tenant':
+                apartment_number = get_apart_num(phone_number)
+                debt = check_debt(apartment_number)
+
+                if debt > 240:
+                    bot.send_message(message.chat.id,
+                                     f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
+
             answer = initial_user_interface(role)
             bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
 
@@ -301,8 +304,15 @@ def telegram_bot(token_value):
         phone_number = str(contact.phone_number)
 
         role = get_user_role(phone_number)
-        answer = initial_user_interface(role)
+        if role == 'tenant':
+            apartment_number = get_apart_num(phone_number)
+            debt = check_debt(apartment_number)
 
+            if debt > 240:
+                bot.send_message(message.chat.id,
+                                 f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
+
+        answer = initial_user_interface(role)
         bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
 
     @bot.message_handler(content_types=['photo'])
