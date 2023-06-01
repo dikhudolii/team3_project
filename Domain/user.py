@@ -1,19 +1,21 @@
+
+
 class User:
-    def __init__(self, user_id):
-        self.user_id = user_id
-        self.is_inhabitant = self._is_inhabitant()
-        self.is_security = self._is_security()
+    def __init__(self):
+        self.id = None
+        self.number = None
+        self.flats = []
+        self.is_inhabitant = False
+        self.is_security = False
+        self.is_blacklisted = False
+        self.tg_name = ""
+        self.apartments = []
 
-    def get_user_number(self):
-        return "380593539652"
+    def set_id(self, _id):
+        self.id = _id
 
-    # need to implement
-    def _is_inhabitant(self):
-        return False
-
-    # need to implement
-    def _is_security(self):
-        return True
+    def set_number(self, number):
+        self.number = number
 
 
 # need to implement

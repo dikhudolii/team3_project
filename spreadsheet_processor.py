@@ -1,7 +1,7 @@
 import gspread
 from google.oauth2.service_account import Credentials
 
-from constants import CLAIM_SHEET_NAME, CLAIM_NUM, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM
+from constants import CLAIM_SHEET_NAME, CLAIM_NUM, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM, SECURITY_SHEET_NAME
 
 
 def get_spreadsheet():
@@ -69,3 +69,9 @@ def update_claim(number, processed_date, security_num, status):
     worksheet.update_cell(cell.row, 8, processed_date)
     worksheet.update_cell(cell.row, 9, security_num)
     worksheet.update_cell(cell.row, 10, status)
+
+
+def get_securities():
+    return get_data_from_worksheet(SECURITY_SHEET_NAME)
+
+

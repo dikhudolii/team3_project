@@ -58,8 +58,7 @@ class Claim:
         self.documents = None
 
 
-def get_claims(user_id: int, only_new: bool):
-    user = get_user_by_id(user_id)
+def get_claims(is_inhabitant: bool, number: str, only_new: bool):
     claims_data = get_claims_from_excel()
     claims = []
 
@@ -71,8 +70,7 @@ def get_claims(user_id: int, only_new: bool):
     if only_new:
         current_date = datetime.now().date()
         claims = [claim for claim in claims if claim.created_date.date() == current_date]
-    if user.is_inhabitant:
-        number = user.get_user_number()
+    if is_inhabitant:
         claims = [claim for claim in claims if claim.phone_number == number]
 
     return claims
@@ -86,7 +84,7 @@ def save_claim(**kwargs):
     claim = Claim()
     claim.number = get_next_claim_number()
     claim.status = ClaimStatuses.New
-    claim.created_date = datetime.now()
+    claim.created_date = datetime.now().strftime(FORMAT_STRING)
     row_data = convert_claim_into_row_data(claim)
     add_claim_to_excel(row_data)
 
@@ -127,7 +125,6 @@ def reject_claim(number, security_name):
     update_claim(number, now.strftime(FORMAT_STRING), security_name, ClaimStatuses.Rejected.value)
 
 
-# REDO Insert security number/name
 def to_process_claim(number, security_name):
     now = datetime.now()
     update_claim(number, now.strftime(FORMAT_STRING), security_name, ClaimStatuses.Done.value)

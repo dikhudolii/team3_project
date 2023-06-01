@@ -14,3 +14,8 @@ CLAIM_STATUS = "Статус"
 CLAIM_SHEET_NAME = "Авто на пропуск"
 
 FORMAT_STRING = "%d.%m.%Y %H:%M:%S"
+
+SECURITY_SHEET_NAME = "admin_guard"
+SECURITY_NAME = "Name"
+SECURITY_NUMBER = "Number"
+SECURITY_ROLE = "Role"
