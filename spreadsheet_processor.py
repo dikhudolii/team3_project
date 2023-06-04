@@ -65,9 +65,9 @@ def update_claim(number, processed_date, security_num, status):
     spreadsheet = get_spreadsheet()
     worksheet = spreadsheet.worksheet(CLAIM_SHEET_NAME)
     cell = worksheet.find(number)
-    worksheet.update_cell(cell.row, 9, processed_date)
-    worksheet.update_cell(cell.row, 10, security_num)
-    worksheet.update_cell(cell.row, 11, status)
+    worksheet.update_cell(cell.row, 10, processed_date)
+    worksheet.update_cell(cell.row, 11, security_num)
+    worksheet.update_cell(cell.row, 12, status)
 
 
 def get_securities():

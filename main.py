@@ -32,7 +32,7 @@ def get_kpp_options_from_spreadsheet():
     spreadsheet = get_spreadsheet()
     kpp_data = spreadsheet.worksheet('Авто на пропуск')
 
-    rule = get_data_validation_rule(kpp_data, 'F2')
+    rule = get_data_validation_rule(kpp_data, 'G2')
 
     if rule:
         return [value.userEnteredValue for value in rule.condition.values]
@@ -79,7 +79,7 @@ def get_user_role(phone_number):
 
     user.number = phone_number
     # user.number = "380849784670"  # - тест мешканця
-    # user.number = "87654321"      - тест охоронця
+    # user.number = "87654321"     # - тест охоронця
     for row in blacklisted_data:
         if str(row['number']) == user.number:
             user.is_blacklisted = True
@@ -150,6 +150,18 @@ def initial_user_interface(role):
 def telegram_bot(token_value):
     bot = telebot.TeleBot(token_value)  # create bot
 
+    def simple_reply_markup(row_width: int, text_arr: list):
+        markup = types.ReplyKeyboardMarkup(row_width=row_width, resize_keyboard=True)
+        for element in text_arr:
+            button = types.KeyboardButton(text=element)
+            markup.add(button)
+        return markup
+
+    def generate_menu_checkpoint():
+        markup = simple_reply_markup(3, get_kpp_options_from_spreadsheet())
+        return markup
+
+
     # Code from Angela's github
     @bot.message_handler(commands=['new'])
     @bot.message_handler(func=lambda message: message.text == 'Створити заявку')
@@ -164,6 +176,11 @@ def telegram_bot(token_value):
         keyboard.add(button1, button2, button3, button4, button5, button6)
         bot.send_message(message.chat.id, "Оберіть тип заявки:", reply_markup=keyboard)
 
+    @bot.message_handler(func=lambda message: message.text == 'Скасувати')
+    def cancel_creating_claim(message):
+        result = initial_user_interface("tenant")
+        bot.send_message(message.chat.id, "Оберіть одну з доступних опцій:", reply_markup=result[1])
+
     # Code from Angela's github
     @bot.message_handler(
         func=lambda message: message.text in ["Пропуск таксі", "Проблема парковки", "Пропуск гостей", "Пропуск кур'єра",
@@ -171,7 +188,7 @@ def telegram_bot(token_value):
     def handle_request_type(message):
         request_type = message.text
         apartment_number = get_apart_num(user.number)
-        new_claim = Claim.init_empty(user.number, apartment_number)
+        new_claim = Claim.create_new(user.number, apartment_number)
         chat_id = message.chat.id
 
         match request_type:
@@ -220,17 +237,6 @@ def telegram_bot(token_value):
                                  "Напишіть текст заявки або прикріпіть фото, місцезнаходження або надішліть файл:")
                 bot.register_next_step_handler(msg, process_description_step)
 
-    def simple_reply_markup(row_width: int, text_arr: list):
-        markup = types.ReplyKeyboardMarkup(row_width=row_width, resize_keyboard=True)
-        for element in text_arr:
-            button = types.KeyboardButton(text=element)
-            markup.add(button)
-        return markup
-
-    def generate_menu_checkpoint():
-        markup = simple_reply_markup(3, get_kpp_options_from_spreadsheet())
-        return markup
-
     def process_number_step(message):
         try:
             chat_id = message.chat.id
@@ -276,7 +282,6 @@ def telegram_bot(token_value):
                                                    reply_markup=markup_without_auto)
                             bot.register_next_step_handler(msg, process_number_step)
                             return
-
                         claim.vehicle_number = answer
 
                 case ClaimTypes.ProblemWithParking.value:
@@ -308,7 +313,7 @@ def telegram_bot(token_value):
                 bot.register_next_step_handler(msg, process_guests_step)
                 return
 
-            claim.description = guests
+            claim.visitors_data = guests
 
             markup_without_comment = simple_reply_markup(1, ["Без коментарів"])
             msg = bot.send_message(chat_id,
@@ -321,14 +326,25 @@ def telegram_bot(token_value):
         try:
             chat_id = message.chat.id
             comment = message.text
+            claim = new_claim_dict[chat_id]
 
             if comment != "Без коментарів":
-                claim = new_claim_dict[chat_id]
-                claim.description += f"\n{comment}"
+                claim.description = comment
 
-            markup = generate_menu_checkpoint()
-            msg = bot.send_message(chat_id, 'Оберіть КПП', reply_markup=markup)
-            bot.register_next_step_handler(msg, process_kpp_step)
+            if claim.type == ClaimTypes.Other.value or claim.type == ClaimTypes.ProblemWithParking.value:
+                markup = simple_reply_markup(2, ["Так", "Ні"])
+
+                msg = bot.send_message(chat_id,
+                                       f"{claim}. Бажаєте зберегти заявку?",
+                                       reply_markup=markup)
+                bot.register_next_step_handler(msg, process_save_claim_step)
+            else:
+                markup = generate_menu_checkpoint()
+                msg = bot.send_message(chat_id,
+                                       'Оберіть КПП',
+                                       reply_markup=markup)
+                bot.register_next_step_handler(msg, process_kpp_step)
+
         except Exception as e:
             bot.reply_to(message, 'Sorry, service temporary unavailable')
 
@@ -344,10 +360,11 @@ def telegram_bot(token_value):
                 bot.register_next_step_handler(msg, process_description_step)
                 return
 
+            claim.description = description
             markup = simple_reply_markup(2, ["Так", "Ні"])
 
             msg = bot.send_message(chat_id,
-                                   f"{claim.type} {claim.vehicle_number} {claim.checkpoint}. Бажаєте зберегти заявку?",
+                                   f"{claim}. Бажаєте зберегти заявку?",
                                    reply_markup=markup)
             bot.register_next_step_handler(msg, process_save_claim_step)
         except Exception as e:
@@ -363,7 +380,7 @@ def telegram_bot(token_value):
             markup = simple_reply_markup(2, ["Так", "Ні"])
 
             msg = bot.send_message(chat_id,
-                                   f"{claim.type} {claim.vehicle_number} {claim.checkpoint}. Бажаєте зберегти заявку?",
+                                   f"{claim}. Бажаєте зберегти заявку?",
                                    reply_markup=markup)
             bot.register_next_step_handler(msg, process_save_claim_step)
         except Exception as e:
@@ -398,7 +415,7 @@ def telegram_bot(token_value):
         data = spreadsheet_processor.get_securities()
         for row in data:
             if row[SECURITY_ROLE] == "guard":
-                security_list += f"Number: {row[SECURITY_NUMBER]}, Name: {row[SECURITY_NAME]}\n"
+                security_list += f"Номер телефону: {row[SECURITY_NUMBER]}, ПІБ: {row[SECURITY_NAME]}\n"
 
         bot.send_message(message.chat.id, security_list)
 
@@ -520,7 +537,7 @@ def telegram_bot(token_value):
             if debt > 240:
                 bot.send_message(message.chat.id,
                                  f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
-                
+
         answer = initial_user_interface(role)
         bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
 
