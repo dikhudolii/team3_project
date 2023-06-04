@@ -2,6 +2,7 @@
 # Excel Claim fields
 CLAIM_NUM = "Номер заявки"
 CLAIM_PHONE_NUMBER = "Номер телефону"
+CLAIM_APARTMENT_NUMBER = "Номер квартири"
 CLAIM_TYPE = "Тип заявки"
 CLAIM_VEHICLE_NUM = "Номер авто"
 CLAIM_CHECKPOINT = "КПП"
@@ -19,3 +20,14 @@ SECURITY_SHEET_NAME = "admin_guard"
 SECURITY_NAME = "Name"
 SECURITY_NUMBER = "Number"
 SECURITY_ROLE = "Role"
+
+# MENU ITEMS
+MENU_FULL_LIST_OF_CLAIMS = "Повний перелік заявок"
+MENU_TODAY_CLAIMS = "Заявки за сьогодні"
+MENU_STATUS_CLAIMS = "Стан заявок"
+MENU_SECURITY_CONTACTS = "Контакти охорони"
+
+MENU_APPROVE = "Підтвердити"
+MENU_REJECT = "Відхилити"
+MENU_CHAT = "Чат з мешканцем"
+MENU_CANCEL = "Скасувати"

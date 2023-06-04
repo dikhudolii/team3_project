@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import Enum
 from constants import CLAIM_DESCRIPTION, CLAIM_NUM, CLAIM_PHONE_NUMBER, CLAIM_TYPE, CLAIM_VEHICLE_NUM, \
-    CLAIM_CHECKPOINT, CLAIM_CREATED_DATE, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM, CLAIM_STATUS, FORMAT_STRING
+    CLAIM_CHECKPOINT, CLAIM_CREATED_DATE, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM, CLAIM_STATUS, FORMAT_STRING, \
+    CLAIM_APARTMENT_NUMBER
 from Domain.user import get_user_by_id
 from spreadsheet_processor import get_claims_from_excel, add_claim_to_excel, get_last_claim_number_cell, delete_claim, \
     update_claim
@@ -29,7 +30,7 @@ class CheckpointTypes(Enum):
 
 class Claim:
 
-    def __init__(self, number, phone_number, claim_type, vehicle_number, checkpoint,
+    def __init__(self, number, phone_number, apartment_number, claim_type, vehicle_number, checkpoint,
                  description, created_date, status):
         '''
             number - generate number of claim
@@ -44,6 +45,7 @@ class Claim:
 
         self.number = number
         self.phone_number = phone_number
+        self.apartment_number = apartment_number
         self.type = claim_type
         self.vehicle_number = vehicle_number
         self.checkpoint = checkpoint
@@ -56,6 +58,20 @@ class Claim:
         self.geolocation = None
         self.photos = None
         self.documents = None
+
+    @classmethod
+    def init_empty(cls, user_number, apartment_number):
+        return cls("", user_number, apartment_number, None, None, None, "", None, ClaimStatuses.New.value)
+
+    def __str__(self):
+        info = f"Тип: {self.type}"
+        if self.vehicle_number is not None:
+            info += f", Номер авто: {self.vehicle_number}"
+        if self.description is not None and len(self.description) > 0:
+            info += f", {self.description} "
+        if self.checkpoint is not None:
+            info += f", КПП: {self.checkpoint} "
+        return info
 
 
 def get_claims(is_inhabitant: bool, number: str, only_new: bool):
@@ -80,33 +96,32 @@ def get_next_claim_number():
     return get_last_claim_number_cell() + 1
 
 
-def save_claim(**kwargs):
-    claim = Claim()
+def save_claim(claim: Claim):
     claim.number = get_next_claim_number()
-    claim.status = ClaimStatuses.New
     claim.created_date = datetime.now().strftime(FORMAT_STRING)
     row_data = convert_claim_into_row_data(claim)
     add_claim_to_excel(row_data)
 
 
 def convert_claim_into_row_data(claim: Claim):
-    row = []
-    row[CLAIM_NUM] = claim.number
-    row[CLAIM_PHONE_NUMBER] = claim.phone_number
-    row[CLAIM_TYPE] = claim.type
-    row[CLAIM_VEHICLE_NUM] = claim.vehicle_number
-    row[CLAIM_CHECKPOINT] = claim.checkpoint
-    row[CLAIM_DESCRIPTION] = claim.description
-    row[CLAIM_CREATED_DATE] = claim.created_date
-    row[CLAIM_PROCESSED_DATE] = claim.processed_date
-    row[CLAIM_SECURITY_NUM] = claim.security_number
-    row[CLAIM_STATUS] = claim.status
+    row = [claim.number,
+           claim.phone_number,
+           claim.apartment_number,
+           claim.type,
+           claim.vehicle_number,
+           claim.checkpoint,
+           claim.description,
+           claim.created_date,
+           claim.processed_date,
+           claim.security_number,
+           claim.status]
     return row
 
 
 def convert_row_data_into_claim(row) -> Claim:
     return Claim(int(row[CLAIM_NUM]),
                  str(row[CLAIM_PHONE_NUMBER]),
+                 str(row[CLAIM_APARTMENT_NUMBER]),
                  str(row[CLAIM_TYPE]),
                  str(row[CLAIM_VEHICLE_NUM]),
                  str(row[CLAIM_CHECKPOINT]),

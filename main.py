@@ -3,16 +3,19 @@ from telebot import types
 import spreadsheet_processor
 from auth_file import token  # import token
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses, reject_claim
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses, reject_claim, Claim, ClaimTypes, \
+    save_claim
 from Domain.user import User
 import gspread
 from gspread_formatting import get_data_validation_rule
 from google.oauth2.service_account import Credentials
 
-from constants import SECURITY_ROLE, SECURITY_NUMBER, SECURITY_NAME
+from constants import SECURITY_ROLE, SECURITY_NUMBER, SECURITY_NAME, MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, \
+    MENU_STATUS_CLAIMS, MENU_SECURITY_CONTACTS, MENU_APPROVE, MENU_REJECT, MENU_CHAT, MENU_CANCEL
 
 user = User()
+new_claim_dict = {}
 
 
 def get_spreadsheet():
@@ -29,7 +32,7 @@ def get_kpp_options_from_spreadsheet():
     spreadsheet = get_spreadsheet()
     kpp_data = spreadsheet.worksheet('Авто на пропуск')
 
-    rule = get_data_validation_rule(kpp_data, 'E2')
+    rule = get_data_validation_rule(kpp_data, 'F2')
 
     if rule:
         return [value.userEnteredValue for value in rule.condition.values]
@@ -75,7 +78,7 @@ def get_user_role(phone_number):
     blacklisted_data, tenants_data, admin_guard_data = get_data_from_spreadsheet()
 
     user.number = phone_number
-    # user.number = "380849784670"      - тест мешканця
+    # user.number = "380849784670"  # - тест мешканця
     # user.number = "87654321"      - тест охоронця
     for row in blacklisted_data:
         if str(row['number']) == user.number:
@@ -167,23 +170,229 @@ def telegram_bot(token_value):
                                               "Заявка на інше"])
     def handle_request_type(message):
         request_type = message.text
+        apartment_number = get_apart_num(user.number)
+        new_claim = Claim.init_empty(user.number, apartment_number)
+        chat_id = message.chat.id
 
         match request_type:
             case "Пропуск таксі":
-                bot.send_message(message.chat.id, "Введіть номер автомобіля таксі:")
+                new_claim.type = ClaimTypes.Taxi.value
+                new_claim_dict[chat_id] = new_claim
+
+                msg = bot.send_message(message.chat.id, "Введіть номер автомобіля таксі:")
+                bot.register_next_step_handler(msg, process_number_step)
+
             case "Пропуск кур'єра":
-                bot.send_message(message.chat.id, "Введіть номер автомобіля кур'єра:")
+                new_claim.type = ClaimTypes.Delivery.value
+                new_claim_dict[chat_id] = new_claim
+
+                markup = simple_reply_markup(1, ["Невідомий номер"])
+                msg = bot.send_message(message.chat.id,
+                                       "Введіть номер автомобіля кур'єра:",
+                                       reply_markup=markup)
+                bot.register_next_step_handler(msg, process_number_step)
+
             case "Пропуск гостей":
-                bot.send_message(message.chat.id, "Введіть номер автомобіля або оберіть варіант 'гості без авто':")
+                new_claim.type = ClaimTypes.Guests.value
+                new_claim_dict[chat_id] = new_claim
+
+                markup = simple_reply_markup(1, ["Гості без авто"])
+                msg = bot.send_message(message.chat.id,
+                                       "Введіть номер автомобіля або оберіть варіант 'гості без авто':",
+                                       reply_markup=markup)
+                bot.register_next_step_handler(msg, process_number_step)
+
             case "Проблема парковки":
-                bot.send_message(message.chat.id, "Введіть номер автомобіля порушника:")
+                new_claim.type = ClaimTypes.ProblemWithParking.value
+                new_claim_dict[chat_id] = new_claim
+
+                markup = simple_reply_markup(2, ["Моє авто заблоковано", "Автомобіль стоїть у недозволеному місці"])
+                msg = bot.send_message(message.chat.id,
+                                       "Уточніть характер проблеми:",
+                                       reply_markup=markup)
+                bot.register_next_step_handler(msg, process_parking_step)
+
             case "Заявка на інше":
-                bot.send_message(message.chat.id,
+                new_claim.type = ClaimTypes.Other.value
+                new_claim_dict[chat_id] = new_claim
+
+                msg = bot.send_message(message.chat.id,
                                  "Напишіть текст заявки або прикріпіть фото, місцезнаходження або надішліть файл:")
+                bot.register_next_step_handler(msg, process_description_step)
 
-        # Обробка якихось додаткових деталей до заявки
+    def simple_reply_markup(row_width: int, text_arr: list):
+        markup = types.ReplyKeyboardMarkup(row_width=row_width, resize_keyboard=True)
+        for element in text_arr:
+            button = types.KeyboardButton(text=element)
+            markup.add(button)
+        return markup
 
-    @bot.message_handler(func=lambda message: message.text == 'Контакти охорони')
+    def generate_menu_checkpoint():
+        markup = simple_reply_markup(3, get_kpp_options_from_spreadsheet())
+        return markup
+
+    def process_number_step(message):
+        try:
+            chat_id = message.chat.id
+            claim = new_claim_dict[chat_id]
+            answer = message.text
+
+            match claim.type:
+                case ClaimTypes.Taxi.value:
+                    if len(answer) < 5:
+                        msg = bot.reply_to(message, 'Ви повинні ввести номер автомобіля')
+                        bot.register_next_step_handler(msg, process_number_step)
+                        return
+
+                    claim.vehicle_number = answer
+
+                case ClaimTypes.Delivery.value:
+                    if answer == "Невідомий номер":
+                        claim.vehicle_number = ""
+                        claim.description = answer
+                    else:
+                        if len(answer) < 5:
+                            markup_unknown = simple_reply_markup(1, ["Невідомий номер"])
+
+                            msg = bot.send_message(chat_id, 'Ви повинні ввести номер '
+                                                            'автомобіля або обрати опцію "Невідомий номер"',
+                                                   reply_markup=markup_unknown)
+                            bot.register_next_step_handler(msg, process_number_step)
+                            return
+
+                        claim.vehicle_number = answer
+
+                case ClaimTypes.Guests.value:
+                    if answer == "Гості без авто":
+                        msg = bot.send_message(chat_id, 'Введіть ПІБ гостей в одному повідомленні', reply_markup=None)
+                        bot.register_next_step_handler(msg, process_guests_step)
+                        return
+                    else:
+                        if len(answer) < 5:
+                            markup_without_auto = simple_reply_markup(1, ["Гості без авто"])
+
+                            msg = bot.send_message(chat_id, 'Ви повинні ввести номер '
+                                                            'автомобіля або обрати опцію "Гості без авто"',
+                                                   reply_markup=markup_without_auto)
+                            bot.register_next_step_handler(msg, process_number_step)
+                            return
+
+                        claim.vehicle_number = answer
+
+                case ClaimTypes.ProblemWithParking.value:
+                    if len(answer) < 5:
+                        msg = bot.reply_to(message, 'Введіть номер автомобіля порушника')
+                        bot.register_next_step_handler(msg, process_number_step)
+                        return
+                    claim.vehicle_number = answer
+
+            markup_without_comment = simple_reply_markup(1, ["Без коментарів"])
+            msg = bot.send_message(chat_id,
+                                   "Можете додати коментар до вашої заявки",
+                                   reply_markup=markup_without_comment)
+
+            bot.register_next_step_handler(msg, process_comment_step)
+
+        except Exception as e:
+            bot.reply_to(message, 'Sorry, service temporary unavailable')
+
+    def process_guests_step(message):
+        try:
+            chat_id = message.chat.id
+            guests = message.text
+            claim = new_claim_dict[chat_id]
+
+            if len(guests) == 0:
+                msg = bot.send_message(chat_id, 'Введіть ПІБ гостей в одному повідомленні',
+                                       reply_markup=ReplyKeyboardRemove())
+                bot.register_next_step_handler(msg, process_guests_step)
+                return
+
+            claim.description = guests
+
+            markup_without_comment = simple_reply_markup(1, ["Без коментарів"])
+            msg = bot.send_message(chat_id,
+                                   "Можете додати коментар до вашої заявки", reply_markup=markup_without_comment)
+            bot.register_next_step_handler(msg, process_comment_step)
+        except Exception as e:
+            bot.reply_to(message, 'Sorry, service temporary unavailable')
+
+    def process_comment_step(message):
+        try:
+            chat_id = message.chat.id
+            comment = message.text
+
+            if comment != "Без коментарів":
+                claim = new_claim_dict[chat_id]
+                claim.description += f"\n{comment}"
+
+            markup = generate_menu_checkpoint()
+            msg = bot.send_message(chat_id, 'Оберіть КПП', reply_markup=markup)
+            bot.register_next_step_handler(msg, process_kpp_step)
+        except Exception as e:
+            bot.reply_to(message, 'Sorry, service temporary unavailable')
+
+    def process_description_step(message):
+        try:
+            chat_id = message.chat.id
+            description = message.text
+            claim = new_claim_dict[chat_id]
+
+            if len(description) == 0:
+                msg = bot.send_message(chat_id, 'Напишіть текст заявки',
+                                       reply_markup=ReplyKeyboardRemove())
+                bot.register_next_step_handler(msg, process_description_step)
+                return
+
+            markup = simple_reply_markup(2, ["Так", "Ні"])
+
+            msg = bot.send_message(chat_id,
+                                   f"{claim.type} {claim.vehicle_number} {claim.checkpoint}. Бажаєте зберегти заявку?",
+                                   reply_markup=markup)
+            bot.register_next_step_handler(msg, process_save_claim_step)
+        except Exception as e:
+            bot.reply_to(message, 'Sorry, service temporary unavailable')
+
+    def process_kpp_step(message):
+        try:
+            chat_id = message.chat.id
+            kpp = message.text
+            claim = new_claim_dict[chat_id]
+            claim.checkpoint = kpp
+
+            markup = simple_reply_markup(2, ["Так", "Ні"])
+
+            msg = bot.send_message(chat_id,
+                                   f"{claim.type} {claim.vehicle_number} {claim.checkpoint}. Бажаєте зберегти заявку?",
+                                   reply_markup=markup)
+            bot.register_next_step_handler(msg, process_save_claim_step)
+        except Exception as e:
+            bot.reply_to(message, 'Sorry, service temporary unavailable')
+
+    def process_parking_step(message):
+        try:
+            chat_id = message.chat.id
+            claim = new_claim_dict[chat_id]
+            claim.description = message.text
+
+            msg = bot.send_message(chat_id, 'Введіть номер авто порушника', reply_markup=ReplyKeyboardRemove())
+            bot.register_next_step_handler(msg, process_number_step)
+
+        except Exception as e:
+            bot.reply_to(message, 'Sorry, service temporary unavailable')
+
+    def process_save_claim_step(message):
+        answer = message.text
+        result = initial_user_interface("tenant")
+        if answer == 'Так':
+            chat_id = message.chat.id
+            claim = new_claim_dict[chat_id]
+            save_claim(claim)
+            bot.send_message(message.chat.id, "Ваша заявка успішно збережена", reply_markup=result[1])
+        else:
+            bot.send_message(message.chat.id, "Збереження заявки скасовано", reply_markup=result[1])
+
+    @bot.message_handler(func=lambda message: message.text == MENU_SECURITY_CONTACTS)
     def get_security_contact(message):
         security_list = ""
         data = spreadsheet_processor.get_securities()
@@ -214,20 +423,11 @@ def telegram_bot(token_value):
             case "chat":
                 bot.send_message(call.message.chat.id, f"Чат з мешканцем. Потрібна реалізація")
 
-    '''
-    Handler for printing list of claims
-    If user is security than will be printed all claims by state New in case todayclaims
-    Or if user is inhabitant than will be printed only claims made by this inhabitant today in case todayclaims
-    Command claims suppose that it's a list of all stored claims
-    '''
-
-    @bot.message_handler(commands=['allclaims', 'todayclaims'])  # handler for getting list of claims
-    @bot.message_handler(func=lambda message: message.text == 'Повний перелік заявок')
-    @bot.message_handler(func=lambda message: message.text == 'Заявки за сьогодні')
-    @bot.message_handler(func=lambda message: message.text == 'Стан заявок')
+    @bot.message_handler(
+        func=lambda message: message.text in [MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, MENU_STATUS_CLAIMS])
     def get_list_of_claims(message):
 
-        only_new = str(message.text) == "Заявки за сьогодні" or (str(message.text).find("todayclaims") > -1)
+        only_new = str(message.text) == MENU_TODAY_CLAIMS
         claims = get_claims(user.is_inhabitant,
                             user.number,
                             only_new=only_new)
@@ -241,33 +441,42 @@ def telegram_bot(token_value):
             # if user is security he would have more options to do with claim
             if user.is_security:
                 if claim.status == ClaimStatuses.New.value:
+
                     markup_inline = InlineKeyboardMarkup()
-                    item_approve = InlineKeyboardButton(text='Підтвердити',
-                                                        callback_data=f"approve, {claim.number}")
-                    item_reject = InlineKeyboardButton(text='Відхилити',
-                                                       callback_data=f"reject, {claim.number}")
-                    item_chat = InlineKeyboardButton(text='Чат з мешканцем',
-                                                     callback_data=f"chat, {claim.number}")
+                    item_approve = InlineKeyboardButton(
+                        text=MENU_APPROVE,
+                        callback_data=f"approve, {claim.number}")
+                    item_reject = InlineKeyboardButton(
+                        text=MENU_REJECT,
+                        callback_data=f"reject, {claim.number}")
+                    item_chat = InlineKeyboardButton(
+                        text=MENU_CHAT,
+                        callback_data=f"chat, {claim.number}")
+
                     markup_inline.add(item_approve, item_reject, item_chat)
                     bot.send_message(message.chat.id,
-                                     f"Заявка від {claim.phone_number}, {claim.type}",
+                                     f"Заявка № {claim.number} від {claim.phone_number}, {claim.type}",
                                      reply_markup=markup_inline)
                 else:
                     bot.send_message(message.chat.id,
-                                     f"Заявка від {claim.phone_number}, {claim.type}")
+                                     f"Заявка № {claim.number} від {claim.phone_number}, {claim.type}")
 
             # if user is inhabitant he could only cancel claim in case it in status New
             elif user.is_inhabitant:
                 if claim.status == ClaimStatuses.New.value:
+
                     markup_inline = InlineKeyboardMarkup()
-                    item_cancel = InlineKeyboardButton(text='Скасувати', callback_data=f"cancel, {claim.number}")
+                    item_cancel = InlineKeyboardButton(
+                        text=MENU_CANCEL,
+                        callback_data=f"cancel, {claim.number}")
                     markup_inline.add(item_cancel)
+
                     bot.send_message(message.chat.id,
-                                     f"Заявка {claim.type} {claim.vehicle_number} статус: {claim.status}",
+                                     f"Заявка №{claim.number} {claim.type} {claim.vehicle_number} статус: {claim.status}",
                                      reply_markup=markup_inline)
                 else:
                     bot.send_message(message.chat.id,
-                                     f"Заявка {claim.type} {claim.vehicle_number} статус: {claim.status}")
+                                     f"Заявка №{claim.number} {claim.type} {claim.vehicle_number} статус: {claim.status}")
 
     @bot.message_handler(commands=['start'])
     def start(message):
@@ -311,7 +520,7 @@ def telegram_bot(token_value):
             if debt > 240:
                 bot.send_message(message.chat.id,
                                  f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
-
+                
         answer = initial_user_interface(role)
         bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
 
@@ -375,6 +584,15 @@ def telegram_bot(token_value):
         except ValueError:
             bot.send_message(message.chat.id,
                              "Некоректний формат. Будь ласка, введіть дані у форматі /admin [номер] [роль]")
+
+    # Enable saving next step handlers to file "./.handlers-saves/step.save".
+    # Delay=2 means that after any change in next step handlers (e.g. calling register_next_step_handler())
+    # saving will hapen after delay 2 seconds.
+    bot.enable_save_next_step_handlers(delay=2)
+
+    # Load next_step_handlers from save file (default "./.handlers-saves/step.save")
+    # WARNING It will work only if enable_save_next_step_handlers was called!
+    bot.load_next_step_handlers()
 
     bot.infinity_polling()  # start endless loop of receiving new messages from Telegram
 

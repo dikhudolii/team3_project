@@ -33,10 +33,11 @@ def delete_row_from_worksheet(worksheet_name, row_number):
     worksheet.delete_rows(row_number)
 
 
-def get_rows_count(worksheet_name):
+def get_column_values(worksheet_name, column_index):
     spreadsheet = get_spreadsheet()
     worksheet = spreadsheet.worksheet(worksheet_name)
-    return worksheet.row_count
+    column_values = [value for value in worksheet.col_values(column_index) if str(value).isdigit()]
+    return column_values
 
 
 def get_claims_from_excel():
@@ -48,9 +49,7 @@ def add_claim_to_excel(row_data):
 
 
 def get_last_claim_number_cell() -> int:
-    spreadsheet = get_spreadsheet()
-    worksheet = spreadsheet.worksheet(CLAIM_SHEET_NAME)
-    return int(worksheet.cell(get_rows_count(), CLAIM_NUM))
+    return int(max(get_column_values(CLAIM_SHEET_NAME, 1)))
 
 
 def delete_claim(number):
@@ -66,9 +65,9 @@ def update_claim(number, processed_date, security_num, status):
     spreadsheet = get_spreadsheet()
     worksheet = spreadsheet.worksheet(CLAIM_SHEET_NAME)
     cell = worksheet.find(number)
-    worksheet.update_cell(cell.row, 8, processed_date)
-    worksheet.update_cell(cell.row, 9, security_num)
-    worksheet.update_cell(cell.row, 10, status)
+    worksheet.update_cell(cell.row, 9, processed_date)
+    worksheet.update_cell(cell.row, 10, security_num)
+    worksheet.update_cell(cell.row, 11, status)
 
 
 def get_securities():
