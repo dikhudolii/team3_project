@@ -49,8 +49,12 @@ def add_claim_to_excel(row_data):
 
 
 def get_last_claim_number_cell() -> int:
-    return int(max(get_column_values(CLAIM_SHEET_NAME, 1)))
-
+    claim_numbers = get_column_values(CLAIM_SHEET_NAME, 1)
+    claim_numbers_int = [int(number) for number in claim_numbers if str(number).isdigit()]
+    if claim_numbers_int:
+        return max(claim_numbers_int)
+    else:
+        return 0
 
 def delete_claim(number):
     spreadsheet = get_spreadsheet()
