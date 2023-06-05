@@ -65,7 +65,7 @@ class Claim:
 
     def __str__(self):
         info = f"Тип: {self.type}"
-        if self.number is None:
+        if self.number is not None:
             info += f" Заявка №: {self.vehicle_number}"
         if self.vehicle_number is not None:
             info += f", Номер авто: {self.vehicle_number}"
