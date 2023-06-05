@@ -1,3 +1,6 @@
+import os
+
+import requests
 from telebot import types
 
 import spreadsheet_processor
@@ -10,6 +13,8 @@ from Domain.user import User
 import gspread
 from gspread_formatting import get_data_validation_rule
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 from constants import SECURITY_ROLE, SECURITY_NUMBER, SECURITY_NAME, MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, \
     MENU_STATUS_CLAIMS, MENU_SECURITY_CONTACTS, MENU_APPROVE, MENU_REJECT, MENU_CHAT, MENU_CANCEL
@@ -64,13 +69,30 @@ def get_debt_data_from_spreadsheet():
 
 def add_to_blacklist(number):
     spreadsheet = get_spreadsheet()
-    worksheet = spreadsheet.get_worksheet('blacklisted_numbers')
+    worksheet = spreadsheet.worksheet('blacklisted_numbers')
     worksheet.append_row([number])
+
+
+def add_user_id(phone_number, user_id):
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.worksheet('telegram_users')
+    if get_phone_num_by_user_id(user_id):
+        return
+
+    worksheet.append_row([phone_number, user_id])
+
+
+def get_phone_num_by_user_id(user_id):
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.worksheet('telegram_users').get_all_values()
+    for row in worksheet:
+        if str(user_id) == str(row[1]):
+            return row[0]
 
 
 def add_admin(number, role):
     spreadsheet = get_spreadsheet()
-    worksheet = spreadsheet.get_worksheet('admin_guard')
+    worksheet = spreadsheet.worksheet('admin_guard')
     worksheet.append_row([number, role])
 
 
@@ -107,15 +129,53 @@ def get_apart_num(phone_number):
     for i, row in enumerate(tenants_data):
         if phone_number in row[3:9]:
             user.apartments.append(tenants_data[i][0])
-            return tenants_data[i][0]
+            return row[0]
 
 
 def check_debt(apartment_num):
-    debt_data = get_debt_data_from_spreadsheet()
+    debt_data = get_debt_data_from_spreadsheet().get_all_values()
 
     for i, row in enumerate(debt_data):
         if apartment_num == row[0]:
-            return int(debt_data[i][14])
+            return int(debt_data[i][16])
+
+
+def create_folder(service, name, parent_folder_id):
+    file_metadata = {
+        'name': str(name),
+        'mimeType': 'application/vnd.google-apps.folder',
+        'parents': [parent_folder_id]
+    }
+    file = service.files().create(body=file_metadata, fields='id').execute()
+    return file['id']
+
+
+def upload_photo(file_info, apartment_number):
+    credentials = Credentials.from_service_account_file('credentials.json')
+    drive_service = build('drive', 'v3', credentials=credentials)
+    folder_id = create_folder(drive_service, apartment_number, '1WMbP-CMpcsr8znKxMQzDz74UW95V0A4I')
+
+    # Upload a file
+    file = requests.get(f'https://api.telegram.org/file/bot{token}/{file_info.file_path}')
+
+    dir_name = "photos/"
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+
+    # Save file locally
+    with open(file_info.file_path, 'wb') as f:
+        f.write(file.content)
+
+    # Determine the file's path and name
+    file_name = file_info.file_path.split('/')[-1]
+    file_path = file_info.file_path
+
+    # upload file to Google Drive
+    media = MediaFileUpload(file_path, mimetype='image/jpeg')
+    request = drive_service.files().create(media_body=media,
+                                           body={'name': file_name, 'parents': [folder_id]})
+    request.execute()
+    os.remove(file_path)
 
 
 def initial_user_interface(role):
@@ -511,6 +571,9 @@ def telegram_bot(token_value):
             phone_number = str(contact.phone_number)
             role = get_user_role(phone_number)
 
+            if role is not None:
+                add_user_id(contact.phone_number, contact.user_id)
+
             if role == 'tenant':
                 apartment_number = get_apart_num(phone_number)
                 debt = check_debt(apartment_number)
@@ -518,6 +581,7 @@ def telegram_bot(token_value):
                 if debt > 240:
                     bot.send_message(message.chat.id,
                                      f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
+                    return
 
             answer = initial_user_interface(role)
             bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
@@ -530,6 +594,10 @@ def telegram_bot(token_value):
         phone_number = str(contact.phone_number)
 
         role = get_user_role(phone_number)
+
+        if role is not None:
+            add_user_id(contact.phone_number, contact.user_id)
+
         if role == 'tenant':
             apartment_number = get_apart_num(phone_number)
             debt = check_debt(apartment_number)
@@ -537,12 +605,20 @@ def telegram_bot(token_value):
             if debt > 240:
                 bot.send_message(message.chat.id,
                                  f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
+                return
 
         answer = initial_user_interface(role)
         bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
 
     @bot.message_handler(content_types=['photo'])
     def handle_photo(message):
+        file_info = bot.get_file(message.photo[-1].file_id)
+        phone_number = get_phone_num_by_user_id(message.from_user.id)
+        print(phone_number)
+        apartment_number = get_apart_num(phone_number)
+        print(apartment_number)
+
+        upload_photo(file_info, apartment_number)
         bot.reply_to(message, "Дякуємо! Ваша квитанція на розгляді в адміністратора.")
 
     @bot.message_handler(commands=['help'])
