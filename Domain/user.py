@@ -1,3 +1,4 @@
+from spreadsheet_processor import get_tg_user_id_by_phone, get_tg_phone_by_user_id
 
 
 class User:
@@ -18,7 +19,9 @@ class User:
         self.number = number
 
 
-# need to implement
-def get_user_by_id(user_id: int) -> User:
-    user = User(user_id)
-    return user
+def get_phone_by_id(user_id):
+    return get_tg_phone_by_user_id(user_id)
+
+
+def get_user_id_by_phone(number):
+    return get_tg_user_id_by_phone(number)

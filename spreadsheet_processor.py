@@ -1,7 +1,8 @@
 import gspread
 from google.oauth2.service_account import Credentials
 
-from constants import CLAIM_SHEET_NAME, CLAIM_NUM, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM, SECURITY_SHEET_NAME
+from constants import CLAIM_SHEET_NAME, CLAIM_NUM, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM, SECURITY_SHEET_NAME, \
+    USERS_SHEET_NAME
 
 
 def get_spreadsheet():
@@ -56,6 +57,7 @@ def get_last_claim_number_cell() -> int:
     else:
         return 0
 
+
 def delete_claim(number):
     spreadsheet = get_spreadsheet()
     worksheet = spreadsheet.worksheet(CLAIM_SHEET_NAME)
@@ -78,3 +80,17 @@ def get_securities():
     return get_data_from_worksheet(SECURITY_SHEET_NAME)
 
 
+def get_tg_phone_by_user_id(user_id):
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.worksheet(USERS_SHEET_NAME).get_all_values()
+    for row in worksheet:
+        if str(user_id) == str(row[1]):
+            return str(row[0])
+
+
+def get_tg_user_id_by_phone(phone):
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.worksheet(USERS_SHEET_NAME).get_all_values()
+    for row in worksheet:
+        if str(phone) == str(row[0]):
+            return str(row[1])

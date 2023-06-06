@@ -3,7 +3,6 @@ from enum import Enum
 from constants import CLAIM_DESCRIPTION, CLAIM_NUM, CLAIM_PHONE_NUMBER, CLAIM_TYPE, CLAIM_VEHICLE_NUM, \
     CLAIM_CHECKPOINT, CLAIM_CREATED_DATE, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM, CLAIM_STATUS, FORMAT_STRING, \
     CLAIM_APARTMENT_NUMBER, CLAIM_VISITORS_DATA
-from Domain.user import get_user_by_id
 from spreadsheet_processor import get_claims_from_excel, add_claim_to_excel, get_last_claim_number_cell, delete_claim, \
     update_claim
 
@@ -66,14 +65,14 @@ class Claim:
     def __str__(self):
         info = f"Тип: {self.type}"
         if self.number is not None:
-            info += f" Заявка №: {self.vehicle_number}"
-        if self.vehicle_number is not None:
+            info += f" Заявка №: {self.number}"
+        if self.vehicle_number is not None and len(str(self.vehicle_number)) > 0:
             info += f", Номер авто: {self.vehicle_number}"
-        if self.visitors_data is not None:
+        if self.visitors_data is not None and len(str(self.visitors_data)) > 0:
             info += f", ПІБ відвідувача: {self.visitors_data}"
         if self.description is not None and len(self.description) > 0:
             info += f", Коментар: {self.description} "
-        if self.checkpoint is not None:
+        if self.checkpoint is not None and len(str(self.checkpoint)) > 0:
             info += f", КПП: {self.checkpoint} "
         return info
 

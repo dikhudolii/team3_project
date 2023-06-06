@@ -28,6 +28,8 @@ MENU_TODAY_CLAIMS = "Заявки за сьогодні"
 MENU_STATUS_CLAIMS = "Стан заявок"
 MENU_SECURITY_CONTACTS = "Контакти охорони"
 
+USERS_SHEET_NAME = "telegram_users"
+
 MENU_APPROVE = "Підтвердити"
 MENU_REJECT = "Відхилити"
 MENU_CHAT = "Чат з мешканцем"

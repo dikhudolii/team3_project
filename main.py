@@ -9,7 +9,7 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses, reject_claim, Claim, ClaimTypes, \
     save_claim
-from Domain.user import User
+from Domain.user import User, get_user_id_by_phone
 import gspread
 from gspread_formatting import get_data_validation_rule
 from google.oauth2.service_account import Credentials
@@ -100,8 +100,7 @@ def get_user_role(phone_number):
     blacklisted_data, tenants_data, admin_guard_data = get_data_from_spreadsheet()
 
     user.number = phone_number
-    # user.number = "380849784670"  # - тест мешканця
-    # user.number = "87654321"     # - тест охоронця
+
     for row in blacklisted_data:
         if str(row['number']) == user.number:
             user.is_blacklisted = True
@@ -221,7 +220,6 @@ def telegram_bot(token_value):
         markup = simple_reply_markup(3, get_kpp_options_from_spreadsheet())
         return markup
 
-
     # Code from Angela's github
     @bot.message_handler(commands=['new'])
     @bot.message_handler(func=lambda message: message.text == 'Створити заявку')
@@ -294,7 +292,7 @@ def telegram_bot(token_value):
                 new_claim_dict[chat_id] = new_claim
 
                 msg = bot.send_message(message.chat.id,
-                                 "Напишіть текст заявки або прикріпіть фото, місцезнаходження або надішліть файл:")
+                                       "Напишіть текст заявки або прикріпіть фото, місцезнаходження або надішліть файл:")
                 bot.register_next_step_handler(msg, process_description_step)
 
     def process_number_step(message):
@@ -481,7 +479,7 @@ def telegram_bot(token_value):
 
     @bot.callback_query_handler(func=lambda call: True)
     def processing_request(call):
-        command, claim_id = str(call.data).split(',')
+        command, claim_id, number = str(call.data).split(',')
         claim_id = claim_id.strip()
 
         match command:
@@ -498,7 +496,13 @@ def telegram_bot(token_value):
                 bot.send_message(call.message.chat.id,
                                  f"Ви успішно видалили заявку № {claim_id}")
             case "chat":
-                bot.send_message(call.message.chat.id, f"Чат з мешканцем. Потрібна реалізація")
+                user_id = get_user_id_by_phone(number)
+                try:
+                    bot.send_message(chat_id=user_id, text=f"Добрий день! Вас турбує охорона ЖК")
+                except Exception as e:
+                    bot.send_message(call.message.chat.id, f"Заявка № {claim_id}: Неможливо почати чат з мешканцем, "
+                                                           f"спробуйте сконтактувати з ним по телефону: {number}",
+                                     parse_mode="Markdown")
 
     @bot.message_handler(
         func=lambda message: message.text in [MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, MENU_STATUS_CLAIMS])
@@ -522,21 +526,21 @@ def telegram_bot(token_value):
                     markup_inline = InlineKeyboardMarkup()
                     item_approve = InlineKeyboardButton(
                         text=MENU_APPROVE,
-                        callback_data=f"approve, {claim.number}")
+                        callback_data=f"approve,{claim.number},")
                     item_reject = InlineKeyboardButton(
                         text=MENU_REJECT,
-                        callback_data=f"reject, {claim.number}")
+                        callback_data=f"reject,{claim.number},")
                     item_chat = InlineKeyboardButton(
                         text=MENU_CHAT,
-                        callback_data=f"chat, {claim.number}")
+                        callback_data=f"chat,{claim.number},{claim.phone_number}")
 
                     markup_inline.add(item_approve, item_reject, item_chat)
                     bot.send_message(message.chat.id,
-                                     f"Заявка № {claim.number} від {claim.phone_number}, {claim.type}",
+                                     f"{claim}",
                                      reply_markup=markup_inline)
                 else:
                     bot.send_message(message.chat.id,
-                                     f"Заявка № {claim.number} від {claim.phone_number}, {claim.type}")
+                                     f"{claim}")
 
             # if user is inhabitant he could only cancel claim in case it in status New
             elif user.is_inhabitant:
@@ -549,11 +553,11 @@ def telegram_bot(token_value):
                     markup_inline.add(item_cancel)
 
                     bot.send_message(message.chat.id,
-                                     f"Заявка №{claim.number} {claim.type} {claim.vehicle_number} статус: {claim.status}",
+                                     f"{claim}",
                                      reply_markup=markup_inline)
                 else:
                     bot.send_message(message.chat.id,
-                                     f"Заявка №{claim.number} {claim.type} {claim.vehicle_number} статус: {claim.status}")
+                                     f"{claim}")
 
     @bot.message_handler(commands=['start'])
     def start(message):
@@ -592,6 +596,10 @@ def telegram_bot(token_value):
 
         contact = message.contact
         phone_number = str(contact.phone_number)
+
+        # phone_number = "380799761264" # - тест борг
+        # phone_number = "380849784670"  # - тест мешканця
+        # phone_number = "87654321"     # - тест охоронця
 
         role = get_user_role(phone_number)
 
