@@ -104,6 +104,7 @@ def save_claim(claim: Claim):
     claim.created_date = datetime.now().strftime(FORMAT_STRING)
     row_data = convert_claim_into_row_data(claim)
     add_claim_to_excel(row_data)
+    return claim.number
 
 
 def convert_claim_into_row_data(claim: Claim):

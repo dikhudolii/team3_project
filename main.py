@@ -292,7 +292,7 @@ def telegram_bot(token_value):
                 new_claim_dict[chat_id] = new_claim
 
                 msg = bot.send_message(message.chat.id,
-                                       "Напишіть текст заявки або прикріпіть фото, місцезнаходження або надішліть файл:")
+                                       "Напишіть текст заявки:")
                 bot.register_next_step_handler(msg, process_description_step)
 
     def process_number_step(message):
@@ -357,7 +357,7 @@ def telegram_bot(token_value):
             bot.register_next_step_handler(msg, process_comment_step)
 
         except Exception as e:
-            bot.reply_to(message, 'Sorry, service temporary unavailable')
+            bot.reply_to(message, 'Сервіс тимчасово недоступний')
 
     def process_guests_step(message):
         try:
@@ -378,7 +378,7 @@ def telegram_bot(token_value):
                                    "Можете додати коментар до вашої заявки", reply_markup=markup_without_comment)
             bot.register_next_step_handler(msg, process_comment_step)
         except Exception as e:
-            bot.reply_to(message, 'Sorry, service temporary unavailable')
+            bot.reply_to(message, 'Сервіс тимчасово недоступний')
 
     def process_comment_step(message):
         try:
@@ -390,12 +390,13 @@ def telegram_bot(token_value):
                 claim.description = comment
 
             if claim.type == ClaimTypes.Other.value or claim.type == ClaimTypes.ProblemWithParking.value:
-                markup = simple_reply_markup(2, ["Так", "Ні"])
+                markup = simple_reply_markup(1, ["Без фото"])
 
                 msg = bot.send_message(chat_id,
-                                       f"{claim}. Бажаєте зберегти заявку?",
+                                       f"Додайте фото до вашої заявки",
                                        reply_markup=markup)
-                bot.register_next_step_handler(msg, process_save_claim_step)
+
+                bot.register_next_step_handler(msg, process_add_photo_claim_step)
             else:
                 markup = generate_menu_checkpoint()
                 msg = bot.send_message(chat_id,
@@ -404,7 +405,7 @@ def telegram_bot(token_value):
                 bot.register_next_step_handler(msg, process_kpp_step)
 
         except Exception as e:
-            bot.reply_to(message, 'Sorry, service temporary unavailable')
+            bot.reply_to(message, 'Сервіс тимчасово недоступний')
 
     def process_description_step(message):
         try:
@@ -419,14 +420,15 @@ def telegram_bot(token_value):
                 return
 
             claim.description = description
-            markup = simple_reply_markup(2, ["Так", "Ні"])
 
+            markup = simple_reply_markup(1, ["Без фото"])
             msg = bot.send_message(chat_id,
-                                   f"{claim}. Бажаєте зберегти заявку?",
+                                   f"Додайте фото до вашої заявки",
                                    reply_markup=markup)
-            bot.register_next_step_handler(msg, process_save_claim_step)
+
+            bot.register_next_step_handler(msg, process_add_photo_claim_step)
         except Exception as e:
-            bot.reply_to(message, 'Sorry, service temporary unavailable')
+            bot.reply_to(message, 'Сервіс тимчасово недоступний')
 
     def process_kpp_step(message):
         try:
@@ -442,7 +444,7 @@ def telegram_bot(token_value):
                                    reply_markup=markup)
             bot.register_next_step_handler(msg, process_save_claim_step)
         except Exception as e:
-            bot.reply_to(message, 'Sorry, service temporary unavailable')
+            bot.reply_to(message, 'Сервіс тимчасово недоступний')
 
     def process_parking_step(message):
         try:
@@ -454,18 +456,41 @@ def telegram_bot(token_value):
             bot.register_next_step_handler(msg, process_number_step)
 
         except Exception as e:
-            bot.reply_to(message, 'Sorry, service temporary unavailable')
+            bot.reply_to(message, 'Сервіс тимчасово недоступний')
 
-    def process_save_claim_step(message):
-        answer = message.text
-        result = initial_user_interface("tenant")
-        if answer == 'Так':
+    def process_add_photo_claim_step(message):
+        try:
             chat_id = message.chat.id
             claim = new_claim_dict[chat_id]
-            save_claim(claim)
-            bot.send_message(message.chat.id, "Ваша заявка успішно збережена", reply_markup=result[1])
-        else:
-            bot.send_message(message.chat.id, "Збереження заявки скасовано", reply_markup=result[1])
+            if message.content_type == 'photo':
+                file_info = bot.get_file(message.photo[-1].file_id)
+                claim.photos = [file_info]
+
+            markup = simple_reply_markup(2, ["Так", "Ні"])
+
+            msg = bot.send_message(chat_id,
+                                   f"{claim}. Бажаєте зберегти заявку?",
+                                   reply_markup=markup)
+            bot.register_next_step_handler(msg, process_save_claim_step)
+
+        except Exception as e:
+            bot.reply_to(message, 'Сервіс тимчасово недоступний')
+
+    def process_save_claim_step(message):
+        try:
+            answer = message.text
+            result = initial_user_interface("tenant")
+            if answer == 'Так':
+                chat_id = message.chat.id
+                claim = new_claim_dict[chat_id]
+                result = save_claim(claim)
+                if claim.photos is not None and len(claim.photos) > 0:
+                    upload_photo(claim.photos[0], f"Claim{result}")
+                bot.send_message(message.chat.id, "Ваша заявка успішно збережена", reply_markup=result[1])
+            else:
+                bot.send_message(message.chat.id, "Збереження заявки скасовано", reply_markup=result[1])
+        except Exception as e:
+            bot.reply_to(message, 'Сервіс тимчасово недоступний')
 
     @bot.message_handler(func=lambda message: message.text == MENU_SECURITY_CONTACTS)
     def get_security_contact(message):
@@ -597,6 +622,7 @@ def telegram_bot(token_value):
         contact = message.contact
         phone_number = str(contact.phone_number)
 
+        # phone_number = "380849784670"
         # phone_number = "380799761264" # - тест борг
         # phone_number = "380849784670"  # - тест мешканця
         # phone_number = "87654321"     # - тест охоронця
