@@ -485,6 +485,7 @@ def telegram_bot(token_value):
                 claim = new_claim_dict[chat_id]
                 result = save_claim(claim)
                 if claim.photos is not None and len(claim.photos) > 0:
+                    print(claim.photos)
                     upload_photo(claim.photos[0], f"Claim{result}")
                 bot.send_message(message.chat.id, "Ваша заявка успішно збережена", reply_markup=result[1])
             else:
@@ -648,12 +649,17 @@ def telegram_bot(token_value):
     def handle_photo(message):
         file_info = bot.get_file(message.photo[-1].file_id)
         phone_number = get_phone_num_by_user_id(message.from_user.id)
-        print(phone_number)
         apartment_number = get_apart_num(phone_number)
-        print(apartment_number)
 
         upload_photo(file_info, apartment_number)
         bot.reply_to(message, "Дякуємо! Ваша квитанція на розгляді в адміністратора.")
+
+    @bot.message_handler(content_types=['location'])
+    def handle_location(message):
+        user_id = message.from_user.id
+        location = message.location
+        print(f"User ID: {user_id}, Latitude: {location.latitude}, Longitude: {location.longitude}")
+
 
     @bot.message_handler(commands=['help'])
     def help_(message):
