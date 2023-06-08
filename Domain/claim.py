@@ -124,7 +124,7 @@ def convert_claim_into_row_data(claim: Claim):
 
 
 def convert_row_data_into_claim(row) -> Claim:
-    return Claim(number= int(row[CLAIM_NUM]),
+    return Claim(number=int(row[CLAIM_NUM]),
                  phone_number=str(row[CLAIM_PHONE_NUMBER]),
                  apartment_number=str(row[CLAIM_APARTMENT_NUMBER]),
                  type=str(row[CLAIM_TYPE]),

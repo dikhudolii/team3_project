@@ -1,4 +1,5 @@
 import os
+from datetime import time
 
 import requests
 from telebot import types
@@ -483,10 +484,7 @@ def telegram_bot(token_value):
             if answer == 'Так':
                 chat_id = message.chat.id
                 claim = new_claim_dict[chat_id]
-                result = save_claim(claim)
-                if claim.photos is not None and len(claim.photos) > 0:
-                    print(claim.photos)
-                    upload_photo(claim.photos[0], f"Claim{result}")
+                claim_number = save_claim(claim)
                 bot.send_message(message.chat.id, "Ваша заявка успішно збережена", reply_markup=result[1])
             else:
                 bot.send_message(message.chat.id, "Збереження заявки скасовано", reply_markup=result[1])
@@ -623,6 +621,7 @@ def telegram_bot(token_value):
         contact = message.contact
         phone_number = str(contact.phone_number)
 
+        # phone_number = str("380951993971")
         # phone_number = "380849784670"
         # phone_number = "380799761264" # - тест борг
         # phone_number = "380849784670"  # - тест мешканця
