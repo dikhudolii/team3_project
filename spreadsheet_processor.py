@@ -213,3 +213,44 @@ def check_debt(apartment_num):
     for i, row in enumerate(debt_data):
         if apartment_num == row[0]:
             return int(debt_data[i][16])
+
+
+def get_guards_data():
+    spreadsheet = get_spreadsheet()
+
+    admin_guard_sheet = spreadsheet.worksheet('admin_guard')
+    admin_guard_data = admin_guard_sheet.get_all_values()
+    guards_numbers = []
+
+    for i, row in enumerate(admin_guard_data):
+        if admin_guard_data[i][1] == "guard":
+            guards_numbers.append(admin_guard_data[i][0])
+
+    return guards_numbers
+
+
+def get_guard_user_ids():
+    data = get_guards_data()
+    guard_ids = []
+    for item in data:
+        user_id = get_user_id_by_phone_num(item)
+        if user_id is not None:
+            guard_ids.append(user_id)
+    return guard_ids
+
+
+def get_user_id_by_phone_num(phone):
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.worksheet('telegram_users').get_all_values()
+    for row in worksheet:
+        if str(phone).replace("+", '') == str(row[0]).replace("+", ''):
+            return str(row[1])
+    return None
+
+
+def get_photo_by_number(number):
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.worksheet(CLAIM_SHEET_NAME)
+    cell = worksheet.find(number)
+    photo_cell = worksheet.cell(cell.row, 14)
+    return photo_cell.value

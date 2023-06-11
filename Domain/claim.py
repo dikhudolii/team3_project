@@ -2,9 +2,9 @@ from datetime import datetime
 from enum import Enum
 from constants import CLAIM_DESCRIPTION, CLAIM_NUM, CLAIM_PHONE_NUMBER, CLAIM_TYPE, CLAIM_VEHICLE_NUM, \
     CLAIM_CHECKPOINT, CLAIM_CREATED_DATE, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM, CLAIM_STATUS, FORMAT_STRING, \
-    CLAIM_APARTMENT_NUMBER, CLAIM_VISITORS_DATA
+    CLAIM_APARTMENT_NUMBER, CLAIM_VISITORS_DATA, CLAIM_LOCATION, CLAIM_PHOTOIDS
 from spreadsheet_processor import get_claims_from_excel, add_claim_to_excel, get_last_claim_number_cell, delete_claim, \
-    update_claim
+    update_claim, get_photo_by_number
 
 
 class ClaimTypes(Enum):
@@ -56,7 +56,18 @@ class Claim:
         self.geolocation = kwargs.pop('geolocation', None)
 
         self.photos = None
+        self.photo_ids = kwargs.pop('photo_ids', "")
+        if len(self.photo_ids):
+            self.photos = str(self.photo_ids).split(";")
+        else:
+            self.photos = None
+
         self.documents = None
+
+    def get_photo_to_str(self):
+        if self.photos is not None and len(self.photos) > 0:
+            return ';'.join(self.photos)
+        return ''
 
     @classmethod
     def create_new(cls, number, apartment_number):
@@ -119,7 +130,9 @@ def convert_claim_into_row_data(claim: Claim):
            claim.created_date,
            claim.processed_date,
            claim.security_number,
-           claim.status]
+           claim.status,
+           claim.geolocation,
+           claim.get_photo_to_str()]
     return row
 
 
@@ -133,7 +146,9 @@ def convert_row_data_into_claim(row) -> Claim:
                  checkpoint=str(row[CLAIM_CHECKPOINT]),
                  description=str(row[CLAIM_DESCRIPTION]),
                  created_date=datetime.strptime(str(row[CLAIM_CREATED_DATE]), FORMAT_STRING),
-                 status=str(row[CLAIM_STATUS]))
+                 status=str(row[CLAIM_STATUS]),
+                 geolocation=str(row[CLAIM_LOCATION]),
+                 photo_ids=str(row[CLAIM_PHOTOIDS]))
 
 
 # delete row
@@ -149,3 +164,7 @@ def reject_claim(number, security_name):
 def to_process_claim(number, security_name):
     now = datetime.now()
     update_claim(number, now.strftime(FORMAT_STRING), security_name, ClaimStatuses.Done.value)
+
+
+def get_claims_photo(number):
+    return get_photo_by_number(number)

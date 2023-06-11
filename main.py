@@ -5,12 +5,13 @@ from auth_file import token  # import token
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses, reject_claim, Claim, ClaimTypes, \
-    save_claim
+    save_claim, get_claims_photo
 from Domain.user import User, get_user_id_by_phone
 
-
 from constants import SECURITY_ROLE, SECURITY_NUMBER, SECURITY_NAME, MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, \
-    MENU_STATUS_CLAIMS, MENU_SECURITY_CONTACTS, MENU_APPROVE, MENU_REJECT, MENU_CHAT, MENU_CANCEL
+    MENU_STATUS_CLAIMS, MENU_SECURITY_CONTACTS, MENU_APPROVE, MENU_REJECT, MENU_CHAT, MENU_CANCEL, MENU_PHOTO, \
+    MENU_LOCATION, MENU_RECEIPT, MENU_NEW_CLAIM, TYPE_TAXI, TYPE_PARKING, TYPE_GUESTS, TYPE_DELIVERY, TYPE_OTHER, \
+    CANCEL_TITLE
 from google_drive_photo import upload_photo
 
 user = User()
@@ -41,10 +42,12 @@ def initial_user_interface(role):
                   f"\n" \
                   f"Оберіть одну з доступних опцій: "
         keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-        button_new = types.KeyboardButton(text="Створити заявку")
-        button_list_of_claims = types.KeyboardButton(text="Стан заявок")
-        button_contacts = types.KeyboardButton(text="Контакти охорони")
-        keyboard.add(button_new, button_list_of_claims, button_contacts)
+        button_new = types.KeyboardButton(text=MENU_NEW_CLAIM)
+        button_list_of_claims = types.KeyboardButton(text=MENU_STATUS_CLAIMS)
+        button_receipt = types.KeyboardButton(text=MENU_RECEIPT)
+        button_contacts = types.KeyboardButton(text=MENU_SECURITY_CONTACTS)
+        keyboard.row(button_new, button_list_of_claims)
+        keyboard.row(button_receipt, button_contacts)
         return message, keyboard
 
     return 'Ви не маєте доступу до чат бота', None
@@ -52,6 +55,9 @@ def initial_user_interface(role):
 
 def telegram_bot(token_value):
     bot = telebot.TeleBot(token_value)  # create bot
+
+    global process_comment_step, process_description_step, process_add_photo_claim_step, process_save_claim_step, \
+        process_parking_step, process_number_step, process_guests_step, process_kpp_step
 
     def simple_reply_markup(row_width: int, text_arr: list):
         markup = types.ReplyKeyboardMarkup(row_width=row_width, resize_keyboard=True)
@@ -66,27 +72,27 @@ def telegram_bot(token_value):
 
     # Code from Angela's github
     @bot.message_handler(commands=['new'])
-    @bot.message_handler(func=lambda message: message.text == 'Створити заявку')
+    @bot.message_handler(func=lambda message: message.text == MENU_NEW_CLAIM)
     def handle_new_request(message):
         keyboard = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-        button1 = types.KeyboardButton(text="Пропуск таксі")
-        button2 = types.KeyboardButton(text="Проблема парковки")
-        button3 = types.KeyboardButton(text="Пропуск гостей")
-        button4 = types.KeyboardButton(text="Пропуск кур'єра")
-        button5 = types.KeyboardButton(text="Заявка на інше")
-        button6 = types.KeyboardButton(text="Скасувати")
+        button1 = types.KeyboardButton(text=TYPE_TAXI)
+        button2 = types.KeyboardButton(text=TYPE_PARKING)
+        button3 = types.KeyboardButton(text=TYPE_GUESTS)
+        button4 = types.KeyboardButton(text=TYPE_DELIVERY)
+        button5 = types.KeyboardButton(text=TYPE_OTHER)
+        button6 = types.KeyboardButton(text=CANCEL_TITLE)
         keyboard.add(button1, button2, button3, button4, button5, button6)
         bot.send_message(message.chat.id, "Оберіть тип заявки:", reply_markup=keyboard)
 
-    @bot.message_handler(func=lambda message: message.text == 'Скасувати')
+    @bot.message_handler(func=lambda message: message.text == CANCEL_TITLE)
     def cancel_creating_claim(message):
         result = initial_user_interface("tenant")
         bot.send_message(message.chat.id, "Оберіть одну з доступних опцій:", reply_markup=result[1])
 
     # Code from Angela's github
     @bot.message_handler(
-        func=lambda message: message.text in ["Пропуск таксі", "Проблема парковки", "Пропуск гостей", "Пропуск кур'єра",
-                                              "Заявка на інше"])
+        func=lambda message: message.text in [TYPE_TAXI, TYPE_PARKING, TYPE_GUESTS, TYPE_DELIVERY,
+                                              TYPE_OTHER])
     def handle_request_type(message):
         request_type = message.text
         apartment_number = spreadsheet_processor.get_apart_num(user.number, user)
@@ -136,7 +142,8 @@ def telegram_bot(token_value):
                 new_claim_dict[chat_id] = new_claim
 
                 msg = bot.send_message(message.chat.id,
-                                       "Напишіть текст заявки:")
+                                       "Напишіть текст заявки:",
+                                       reply_markup=ReplyKeyboardRemove())
                 bot.register_next_step_handler(msg, process_description_step)
 
     def process_number_step(message):
@@ -172,7 +179,8 @@ def telegram_bot(token_value):
 
                 case ClaimTypes.Guests.value:
                     if answer == "Гості без авто":
-                        msg = bot.send_message(chat_id, 'Введіть ПІБ гостей в одному повідомленні', reply_markup=None)
+                        msg = bot.send_message(chat_id, 'Введіть ПІБ гостей в одному повідомленні',
+                                               reply_markup=ReplyKeyboardRemove())
                         bot.register_next_step_handler(msg, process_guests_step)
                         return
                     else:
@@ -309,6 +317,20 @@ def telegram_bot(token_value):
             if message.content_type == 'photo':
                 file_info = bot.get_file(message.photo[-1].file_id)
                 claim.photos = [file_info]
+                file_id = message.photo[-1].file_id
+                claim.photos = [file_id]
+            if message.content_type == 'location':
+                location = message.location
+                claim.geolocation = f"{location.latitude};{location.longitude}"
+
+            text = message.text
+            if message.content_type == 'photo' or (text is not None and text == "Без фото"):
+                markup = simple_reply_markup(1, ["Без геолокації"])
+                msg = bot.send_message(chat_id,
+                                       f"Додайте геолокацію до вашої заявки",
+                                       reply_markup=markup)
+                bot.register_next_step_handler(msg, process_add_photo_claim_step)
+                return
 
             markup = simple_reply_markup(2, ["Так", "Ні"])
 
@@ -328,7 +350,25 @@ def telegram_bot(token_value):
                 chat_id = message.chat.id
                 claim = new_claim_dict[chat_id]
                 claim_number = save_claim(claim)
-                bot.send_message(message.chat.id, "Ваша заявка успішно збережена", reply_markup=result[1])
+                bot.send_message(message.chat.id, f"Ваша заявка успішно збережена за номером {claim_number}",
+                                 reply_markup=result[1])
+                # get all security
+                # get all security user_ids
+                # send message with claim
+                # send photo if exist
+                security_user_ids = spreadsheet_processor.get_guard_user_ids()
+                for user_id in security_user_ids:
+                    bot.send_message(chat_id=user_id,
+                                     text=f"Нова заявка:\n {claim}")
+                    if claim.photos is not None and len(claim.photos) > 0:
+                        bot.send_photo(chat_id=user_id,
+                                       photo=claim.photos[0],
+                                       caption=f"Фото до заявки {claim.number}")
+                    if claim.geolocation is not None:
+                        coordinates = str(claim.geolocation).split(";")
+                        bot.send_location(chat_id=user_id,
+                                          latitude=float(coordinates[0]),
+                                          longitude=float(coordinates[1]))
             else:
                 bot.send_message(message.chat.id, "Збереження заявки скасовано", reply_markup=result[1])
         except Exception as e:
@@ -346,7 +386,7 @@ def telegram_bot(token_value):
 
     @bot.callback_query_handler(func=lambda call: True)
     def processing_request(call):
-        command, claim_id, number = str(call.data).split(',')
+        command, claim_id, additional_parameter = str(call.data).split(',')
         claim_id = claim_id.strip()
 
         match command:
@@ -363,13 +403,26 @@ def telegram_bot(token_value):
                 bot.send_message(call.message.chat.id,
                                  f"Ви успішно видалили заявку № {claim_id}")
             case "chat":
-                user_id = get_user_id_by_phone(number)
+                user_id = get_user_id_by_phone(additional_parameter)
                 try:
                     bot.send_message(chat_id=user_id, text=f"Добрий день! Вас турбує охорона ЖК")
                 except Exception as e:
                     bot.send_message(call.message.chat.id, f"Заявка № {claim_id}: Неможливо почати чат з мешканцем, "
-                                                           f"спробуйте сконтактувати з ним по телефону: {number}",
+                                                           f"спробуйте сконтактувати з ним по телефону: {additional_parameter}",
                                      parse_mode="Markdown")
+            case "photos":
+                photo = get_claims_photo(claim_id)
+                bot.reply_to(message=call.message,
+                             text=f"Фото до заявки {claim_id}")
+                bot.send_photo(chat_id=call.message.chat.id,
+                               photo=photo)
+            case "location":
+                coordinates = str(additional_parameter).split(";")
+                bot.reply_to(message=call.message,
+                             text=f"Геолокація до заявки {claim_id}")
+                bot.send_location(chat_id=call.message.chat.id,
+                                  latitude=float(coordinates[0]),
+                                  longitude=float(coordinates[1]))
 
     @bot.message_handler(
         func=lambda message: message.text in [MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, MENU_STATUS_CLAIMS])
@@ -390,7 +443,7 @@ def telegram_bot(token_value):
             if user.is_security:
                 if claim.status == ClaimStatuses.New.value:
 
-                    markup_inline = InlineKeyboardMarkup()
+                    markup_inline = InlineKeyboardMarkup(row_width=2)
                     item_approve = InlineKeyboardButton(
                         text=MENU_APPROVE,
                         callback_data=f"approve,{claim.number},")
@@ -402,6 +455,19 @@ def telegram_bot(token_value):
                         callback_data=f"chat,{claim.number},{claim.phone_number}")
 
                     markup_inline.add(item_approve, item_reject, item_chat)
+
+                    if claim.photos is not None and len(claim.photos) > 0:
+                        item_photos = InlineKeyboardButton(
+                            text=MENU_PHOTO,
+                            callback_data=f"photos,{claim.number},")
+                        markup_inline.add(item_photos)
+
+                    if claim.geolocation is not None and len(claim.geolocation) > 0:
+                        item_location = InlineKeyboardButton(
+                            text=MENU_LOCATION,
+                            callback_data=f"location,{claim.number},{claim.geolocation}")
+                        markup_inline.add(item_location)
+
                     bot.send_message(message.chat.id,
                                      f"{claim}",
                                      reply_markup=markup_inline)
@@ -416,7 +482,7 @@ def telegram_bot(token_value):
                     markup_inline = InlineKeyboardMarkup()
                     item_cancel = InlineKeyboardButton(
                         text=MENU_CANCEL,
-                        callback_data=f"cancel, {claim.number}")
+                        callback_data=f"cancel,{claim.number},")
                     markup_inline.add(item_cancel)
 
                     bot.send_message(message.chat.id,
@@ -487,7 +553,13 @@ def telegram_bot(token_value):
         answer = initial_user_interface(role)
         bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
 
-    @bot.message_handler(content_types=['photo'])
+    @bot.message_handler(func=lambda message: message.text == MENU_RECEIPT)
+    def handle_receipt(message):
+        bot.send_message(message.chat.id,
+                         "Завантажте квитанцію про оплату",
+                         reply_markup=ReplyKeyboardRemove())
+
+    @bot.message_handler(content_types=['photo', 'document'])
     def handle_payment_receipt(message):
         file_info = bot.get_file(message.photo[-1].file_id)
         phone_number = spreadsheet_processor.get_phone_num_by_user_id(message.from_user.id)
@@ -519,7 +591,6 @@ def telegram_bot(token_value):
         /start - Початок роботи з ботом
         /help - Вивести це повідомлення з інструкціями
         /newrequest - Створити нову заявку
-        /stop - Припинити використання бота
 
         Якщо у вас виникли додаткові питання або проблеми, будь ласка, зверніться до адміністратора.
 
