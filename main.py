@@ -1,7 +1,3 @@
-import os
-from datetime import time
-
-import requests
 from telebot import types
 
 import spreadsheet_processor
@@ -11,171 +7,14 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeybo
 from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses, reject_claim, Claim, ClaimTypes, \
     save_claim
 from Domain.user import User, get_user_id_by_phone
-import gspread
-from gspread_formatting import get_data_validation_rule
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+
 
 from constants import SECURITY_ROLE, SECURITY_NUMBER, SECURITY_NAME, MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, \
     MENU_STATUS_CLAIMS, MENU_SECURITY_CONTACTS, MENU_APPROVE, MENU_REJECT, MENU_CHAT, MENU_CANCEL
+from google_drive_photo import upload_photo
 
 user = User()
 new_claim_dict = {}
-
-
-def get_spreadsheet():
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    credentials = Credentials.from_service_account_file('credentials.json', scopes=scope)
-    client = gspread.authorize(credentials)
-
-    spreadsheet_url = 'https://docs.google.com/spreadsheets/d/1ZnkTI5xrR0vDh5QWMyNEz4PWofWhMv-nc4oUyeEbkzQ/edit?usp=sharing'
-    spreadsheet = client.open_by_url(spreadsheet_url)
-    return spreadsheet
-
-
-def get_kpp_options_from_spreadsheet():
-    spreadsheet = get_spreadsheet()
-    kpp_data = spreadsheet.worksheet('Авто на пропуск')
-
-    rule = get_data_validation_rule(kpp_data, 'G2')
-
-    if rule:
-        return [value.userEnteredValue for value in rule.condition.values]
-
-    return None
-
-
-def get_data_from_spreadsheet():
-    spreadsheet = get_spreadsheet()
-
-    blacklisted_sheet = spreadsheet.worksheet('blacklisted_numbers')
-    blacklisted_data = blacklisted_sheet.get_all_records()
-
-    tenants_sheet = spreadsheet.worksheet('tenants')
-    tenants_data = tenants_sheet.get_all_values()
-
-    admin_guard_sheet = spreadsheet.worksheet('admin_guard')
-    admin_guard_data = admin_guard_sheet.get_all_values()
-
-    return blacklisted_data, tenants_data, admin_guard_data
-
-
-def get_debt_data_from_spreadsheet():
-    spreadsheet = get_spreadsheet()
-
-    debt_data = spreadsheet.worksheet('debt')
-    return debt_data
-
-
-def add_to_blacklist(number):
-    spreadsheet = get_spreadsheet()
-    worksheet = spreadsheet.worksheet('blacklisted_numbers')
-    worksheet.append_row([number])
-
-
-def add_user_id(phone_number, user_id):
-    spreadsheet = get_spreadsheet()
-    worksheet = spreadsheet.worksheet('telegram_users')
-    if get_phone_num_by_user_id(user_id):
-        return
-
-    worksheet.append_row([phone_number, user_id])
-
-
-def get_phone_num_by_user_id(user_id):
-    spreadsheet = get_spreadsheet()
-    worksheet = spreadsheet.worksheet('telegram_users').get_all_values()
-    for row in worksheet:
-        if str(user_id) == str(row[1]):
-            return row[0]
-
-
-def add_admin(number, role):
-    spreadsheet = get_spreadsheet()
-    worksheet = spreadsheet.worksheet('admin_guard')
-    worksheet.append_row([number, role])
-
-
-def get_user_role(phone_number):
-    blacklisted_data, tenants_data, admin_guard_data = get_data_from_spreadsheet()
-
-    user.number = phone_number
-
-    for row in blacklisted_data:
-        if str(row['number']) == user.number:
-            user.is_blacklisted = True
-            return "Blacklisted"
-
-    for row in tenants_data:
-        if user.number in list(map(str, row[3:9])):
-            user.is_inhabitant = True
-            return "tenant"
-
-    for i, row in enumerate(admin_guard_data):
-        if str(row[0]) == user.number:
-            if admin_guard_data[i][1] == "guard":
-                user.is_security = True
-            else:
-                user.is_admin = True
-            return admin_guard_data[i][1]
-
-    return None
-
-
-def get_apart_num(phone_number):
-    blacklisted_data, tenants_data, admin_guard_data = get_data_from_spreadsheet()
-
-    for i, row in enumerate(tenants_data):
-        if phone_number in row[3:9]:
-            user.apartments.append(tenants_data[i][0])
-            return row[0]
-
-
-def check_debt(apartment_num):
-    debt_data = get_debt_data_from_spreadsheet().get_all_values()
-
-    for i, row in enumerate(debt_data):
-        if apartment_num == row[0]:
-            return int(debt_data[i][16])
-
-
-def create_folder(service, name, parent_folder_id):
-    file_metadata = {
-        'name': str(name),
-        'mimeType': 'application/vnd.google-apps.folder',
-        'parents': [parent_folder_id]
-    }
-    file = service.files().create(body=file_metadata, fields='id').execute()
-    return file['id']
-
-
-def upload_photo(file_info, apartment_number):
-    credentials = Credentials.from_service_account_file('credentials.json')
-    drive_service = build('drive', 'v3', credentials=credentials)
-    folder_id = create_folder(drive_service, apartment_number, '1WMbP-CMpcsr8znKxMQzDz74UW95V0A4I')
-
-    # Upload a file
-    file = requests.get(f'https://api.telegram.org/file/bot{token}/{file_info.file_path}')
-
-    dir_name = "photos/"
-    if not os.path.exists(dir_name):
-        os.makedirs(dir_name)
-
-    # Save file locally
-    with open(file_info.file_path, 'wb') as f:
-        f.write(file.content)
-
-    # Determine the file's path and name
-    file_name = file_info.file_path.split('/')[-1]
-    file_path = file_info.file_path
-
-    # upload file to Google Drive
-    media = MediaFileUpload(file_path, mimetype='image/jpeg')
-    request = drive_service.files().create(media_body=media,
-                                           body={'name': file_name, 'parents': [folder_id]})
-    request.execute()
-    os.remove(file_path)
 
 
 def initial_user_interface(role):
@@ -195,8 +34,12 @@ def initial_user_interface(role):
         keyboard.add(button_list_of_claims, button_list_of_today_claims)
         return message, keyboard
     if role == 'tenant':
-        apartment_number = get_apart_num(user.number)
-        message = f"Вітаємо, {user.tg_name}. Ви є мешканцем квартири {apartment_number}. Оберіть одну з доступних опцій: "
+        apartment_number = spreadsheet_processor.get_apart_num(user.number, user)
+        message = f"Вітаємо, {user.tg_name}. Ви є мешканцем квартири {apartment_number}. \n" \
+                  f"\n" \
+                  f"Для ознайомлення з функціоналом боту натисніть /help. \n" \
+                  f"\n" \
+                  f"Оберіть одну з доступних опцій: "
         keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
         button_new = types.KeyboardButton(text="Створити заявку")
         button_list_of_claims = types.KeyboardButton(text="Стан заявок")
@@ -218,7 +61,7 @@ def telegram_bot(token_value):
         return markup
 
     def generate_menu_checkpoint():
-        markup = simple_reply_markup(3, get_kpp_options_from_spreadsheet())
+        markup = simple_reply_markup(3, spreadsheet_processor.get_kpp_options_from_spreadsheet())
         return markup
 
     # Code from Angela's github
@@ -246,7 +89,7 @@ def telegram_bot(token_value):
                                               "Заявка на інше"])
     def handle_request_type(message):
         request_type = message.text
-        apartment_number = get_apart_num(user.number)
+        apartment_number = spreadsheet_processor.get_apart_num(user.number, user)
         new_claim = Claim.create_new(user.number, apartment_number)
         chat_id = message.chat.id
 
@@ -597,14 +440,14 @@ def telegram_bot(token_value):
         else:
             contact = message.contact
             phone_number = str(contact.phone_number)
-            role = get_user_role(phone_number)
+            role = spreadsheet_processor.get_user_role(phone_number, user)
 
             if role is not None:
-                add_user_id(contact.phone_number, contact.user_id)
+                spreadsheet_processor.add_user_id(contact.phone_number, contact.user_id)
 
             if role == 'tenant':
-                apartment_number = get_apart_num(phone_number)
-                debt = check_debt(apartment_number)
+                apartment_number = spreadsheet_processor.get_apart_num(phone_number, user)
+                debt = spreadsheet_processor.check_debt(apartment_number)
 
                 if debt > 240:
                     bot.send_message(message.chat.id,
@@ -627,14 +470,14 @@ def telegram_bot(token_value):
         # phone_number = "380849784670"  # - тест мешканця
         # phone_number = "87654321"     # - тест охоронця
 
-        role = get_user_role(phone_number)
+        role = spreadsheet_processor.get_user_role(phone_number, user)
 
         if role is not None:
-            add_user_id(contact.phone_number, contact.user_id)
+            spreadsheet_processor.add_user_id(contact.phone_number, contact.user_id, message.chat.id)
 
         if role == 'tenant':
-            apartment_number = get_apart_num(phone_number)
-            debt = check_debt(apartment_number)
+            apartment_number = spreadsheet_processor.get_apart_num(phone_number, user)
+            debt = spreadsheet_processor.check_debt(apartment_number)
 
             if debt > 240:
                 bot.send_message(message.chat.id,
@@ -645,10 +488,20 @@ def telegram_bot(token_value):
         bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
 
     @bot.message_handler(content_types=['photo'])
-    def handle_photo(message):
+    def handle_payment_receipt(message):
         file_info = bot.get_file(message.photo[-1].file_id)
-        phone_number = get_phone_num_by_user_id(message.from_user.id)
-        apartment_number = get_apart_num(phone_number)
+        phone_number = spreadsheet_processor.get_phone_num_by_user_id(message.from_user.id)
+        apartment_number = spreadsheet_processor.get_apart_num(phone_number, user)
+
+        admin_numbers = spreadsheet_processor.get_admin_data_from_spreadsheet()
+        for number in admin_numbers:
+            admin_id = get_user_id_by_phone(number)
+
+            if admin_id is None:
+                continue
+
+            text = f"Надіслана квитанція про оплату боргу від квартири {apartment_number}."
+            bot.send_message(admin_id, text)
 
         upload_photo(file_info, apartment_number)
         bot.reply_to(message, "Дякуємо! Ваша квитанція на розгляді в адміністратора.")
@@ -658,7 +511,6 @@ def telegram_bot(token_value):
         user_id = message.from_user.id
         location = message.location
         print(f"User ID: {user_id}, Latitude: {location.latitude}, Longitude: {location.longitude}")
-
 
     @bot.message_handler(commands=['help'])
     def help_(message):
@@ -683,7 +535,7 @@ def telegram_bot(token_value):
 
     @bot.message_handler(func=lambda message: message.text == 'Додати нового адміна/охоронця')
     def handle_admin_add(message):
-        msg = 'Будь ласка, введіть номер та роль нового користувача у форматі: /admin [номер] [роль]'
+        msg = 'Будь ласка, введіть номер та роль нового користувача у форматі: /admin [номер] [роль] [Прізвище]'
         bot.send_message(message.chat.id, msg)
 
     @bot.message_handler(commands=['blacklist'])
@@ -695,27 +547,28 @@ def telegram_bot(token_value):
             number = parts[1]
             # Перевіряємо, чи є number коректним номером телефону.
             # Якщо все в порядку, додаємо номер до blacklist
-            add_to_blacklist(number)
+            spreadsheet_processor.add_to_blacklist(number)
             bot.send_message(message.chat.id, "Номер успішно додано до blacklist!")
         except ValueError:
             bot.send_message(message.chat.id,
-                             "Некоректний формат. Будь ласка, введіть номер у форматі /blacklist [номер]")
+                             "Некоректний формат. Будь ласка, введіть номер у форматі: /blacklist [номер]")
 
     @bot.message_handler(commands=['admin'])
     def handle_admin_add_command(message):
         try:
             parts = message.text.split()
-            if len(parts) != 3:
+            if len(parts) != 4:
                 raise ValueError
             number = parts[1]
             role = parts[2]
+            surname = parts[3]
             # Перевіряємо, чи є number коректним номером телефону, і чи є role валідною роллю.
             # Якщо все в порядку, додаємо номер і роль до  листа admin_guard
-            add_admin(number, role)
+            spreadsheet_processor.add_admin(number, role, surname)
             bot.send_message(message.chat.id, "Новий адмін/охоронець успішно доданий!")
         except ValueError:
             bot.send_message(message.chat.id,
-                             "Некоректний формат. Будь ласка, введіть дані у форматі /admin [номер] [роль]")
+                             "Некоректний формат. Будь ласка, введіть дані у форматі: \admin [номер] [роль] [Прізвище]")
 
     # Enable saving next step handlers to file "./.handlers-saves/step.save".
     # Delay=2 means that after any change in next step handlers (e.g. calling register_next_step_handler())
