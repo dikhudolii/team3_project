@@ -9,17 +9,15 @@ from auth_file import token
 
 
 def create_folder(service, name, parent_folder_id):
-    # Проверка существования папки
     response = service.files().list(
         q=f"name='{name}' and '{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder'",
         spaces='drive',
         fields='files(id, name)').execute()
 
-    # Если папка существует, возвращаем её ID
     if response.get('files'):
         return response.get('files')[0].get('id')
     else:
-        # Если папка не существует, создаем новую
+
         file_metadata = {
             'name': str(name),
             'mimeType': 'application/vnd.google-apps.folder',

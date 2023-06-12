@@ -149,13 +149,13 @@ def add_to_blacklist(number):
     worksheet.append_row([number])
 
 
-def add_user_id(phone_number, user_id, chat_id):
+def add_user_id(phone_number, user_id):
     spreadsheet = get_spreadsheet()
     worksheet = spreadsheet.worksheet('telegram_users')
     if get_phone_num_by_user_id(user_id):
         return
 
-    worksheet.append_row([phone_number, user_id, chat_id])
+    worksheet.append_row([phone_number, user_id])
 
 
 def get_phone_num_by_user_id(user_id):
