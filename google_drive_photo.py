@@ -29,29 +29,25 @@ def create_folder(service, name, parent_folder_id):
         return file['id']
 
 
-def upload_photo(file_info, apartment_number):
+def upload_photo_pdf(file_info, apartment_number):
     credentials = Credentials.from_service_account_file('credentials.json')
     drive_service = build('drive', 'v3', credentials=credentials)
     folder_id = create_folder(drive_service, apartment_number, '1WMbP-CMpcsr8znKxMQzDz74UW95V0A4I')
 
-    # Upload a file
     file = requests.get(f'https://api.telegram.org/file/bot{token}/{file_info.file_path}')
 
-    dir_name = "photos/"
+    dir_name = "files/"
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
 
-    # Save file locally
-    with open(file_info.file_path, 'wb') as f:
+    local_file_path = os.path.join(dir_name, file_info.file_path.split('/')[-1])
+    with open(local_file_path, 'wb') as f:
         f.write(file.content)
 
-    # Determine the file's path and name
-    file_name = file_info.file_path.split('/')[-1]
-    file_path = file_info.file_path
+    mime_type = 'application/pdf' if local_file_path.endswith('.pdf') else 'image/jpeg'
 
-    # upload file to Google Drive
-    media = MediaFileUpload(file_path, mimetype='image/jpeg')
-    request = drive_service.files().create(media_body=media,
-                                           body={'name': file_name, 'parents': [folder_id]})
+    media = MediaFileUpload(local_file_path, mimetype=mime_type)
+    request = drive_service.files().create(media_body=media, body={'name': local_file_path.split('/')[-1], 'parents': [folder_id]})
     request.execute()
-    os.remove(file_path)
+
+    os.remove(local_file_path)

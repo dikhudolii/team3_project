@@ -12,7 +12,7 @@ from constants import SECURITY_ROLE, SECURITY_NUMBER, SECURITY_NAME, MENU_FULL_L
     MENU_STATUS_CLAIMS, MENU_SECURITY_CONTACTS, MENU_APPROVE, MENU_REJECT, MENU_CHAT, MENU_CANCEL, MENU_PHOTO, \
     MENU_LOCATION, MENU_RECEIPT, MENU_NEW_CLAIM, TYPE_TAXI, TYPE_PARKING, TYPE_GUESTS, TYPE_DELIVERY, TYPE_OTHER, \
     CANCEL_TITLE
-from google_drive_photo import upload_photo
+from google_drive_photo import upload_photo_pdf
 
 user = User()
 new_claim_dict = {}
@@ -281,6 +281,7 @@ def telegram_bot(token_value):
             bot.register_next_step_handler(msg, process_add_photo_claim_step)
         except Exception as e:
             bot.reply_to(message, 'Сервіс тимчасово недоступний')
+
 
     def process_kpp_step(message):
         try:
@@ -561,7 +562,15 @@ def telegram_bot(token_value):
 
     @bot.message_handler(content_types=['photo', 'document'])
     def handle_payment_receipt(message):
-        file_info = bot.get_file(message.photo[-1].file_id)
+        if message.content_type == 'document':
+            if message.document.mime_type == 'application/pdf':
+                file_info = bot.get_file(message.document.file_id)
+            else:
+                bot.reply_to(message, "Вибачте, приймаються лише pdf або фото.")
+                return
+        else:
+            file_info = bot.get_file(message.photo[-1].file_id)
+
         phone_number = spreadsheet_processor.get_phone_num_by_user_id(message.from_user.id)
         apartment_number = spreadsheet_processor.get_apart_num(phone_number, user)
 
@@ -575,7 +584,8 @@ def telegram_bot(token_value):
             text = f"Надіслана квитанція про оплату боргу від квартири {apartment_number}."
             bot.send_message(admin_id, text)
 
-        upload_photo(file_info, apartment_number)
+        upload_photo_pdf(file_info, apartment_number)
+
         bot.reply_to(message, "Дякуємо! Ваша квитанція на розгляді в адміністратора.")
 
     @bot.message_handler(content_types=['location'])
@@ -590,7 +600,7 @@ def telegram_bot(token_value):
         Ось декілька корисних команд, які ви можете використовувати:
         /start - Початок роботи з ботом
         /help - Вивести це повідомлення з інструкціями
-        /newrequest - Створити нову заявку
+        /new - Створити нову заявку
 
         Якщо у вас виникли додаткові питання або проблеми, будь ласка, зверніться до адміністратора.
 
