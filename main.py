@@ -52,10 +52,8 @@ def initial_user_interface(role):
         keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
         button_new = types.KeyboardButton(text=MENU_NEW_CLAIM)
         button_list_of_claims = types.KeyboardButton(text=MENU_STATUS_CLAIMS)
-        button_receipt = types.KeyboardButton(text=MENU_RECEIPT)
         button_contacts = types.KeyboardButton(text=MENU_SECURITY_CONTACTS)
-        keyboard.row(button_new, button_list_of_claims)
-        keyboard.row(button_receipt, button_contacts)
+        keyboard.add(button_new, button_list_of_claims, button_contacts)
         return message, keyboard
 
     return 'Ви не маєте доступу до чат бота', None
@@ -561,12 +559,6 @@ def telegram_bot(token_value):
 
         answer = initial_user_interface(role)
         bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
-
-    @bot.message_handler(func=lambda message: message.text == MENU_RECEIPT)
-    def handle_receipt(message):
-        bot.send_message(message.chat.id,
-                         "Завантажте квитанцію про оплату",
-                         reply_markup=ReplyKeyboardRemove())
 
     @bot.message_handler(content_types=['photo', 'document'])
     def handle_payment_receipt(message):
