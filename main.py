@@ -436,8 +436,6 @@ def telegram_bot(token_value):
     @bot.message_handler(
         func=lambda message: message.text in [MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, MENU_STATUS_CLAIMS])
     def get_list_of_claims(message):
-        user_phone = spreadsheet_processor.get_phone_num_by_user_id(message.chat.id)
-        role = spreadsheet_processor.get_user_role(user_phone, user)
         only_new = str(message.text) == MENU_TODAY_CLAIMS
         claims = get_claims(user.is_inhabitant,
                             user.number,
@@ -450,7 +448,7 @@ def telegram_bot(token_value):
         # processing claims
         for claim in claims:
             # if user is security he would have more options to do with claim
-            if role == 'guard':
+            if user.is_security:
                 if claim.status == ClaimStatuses.New.value:
                     markup_inline = InlineKeyboardMarkup(row_width=2)
                     item_approve = InlineKeyboardButton(
@@ -485,7 +483,7 @@ def telegram_bot(token_value):
                                      f"{claim}")
 
             # if user is inhabitant he could only cancel claim in case it in status New
-            elif role == 'tenant':
+            elif user.is_inhabitant:
                 if claim.status == ClaimStatuses.New.value:
 
                     markup_inline = InlineKeyboardMarkup()
@@ -548,7 +546,7 @@ def telegram_bot(token_value):
         role = spreadsheet_processor.get_user_role(phone_number, user)
 
         if role is not None:
-            spreadsheet_processor.add_user_id(contact.phone_number, contact.user_id)
+            spreadsheet_processor.add_user_id(contact.phone_number, contact.user_id, message.chat.id)
 
         if role == 'tenant':
             apartment_number = spreadsheet_processor.get_apart_num(phone_number, user)
@@ -604,31 +602,16 @@ def telegram_bot(token_value):
 
     @bot.message_handler(commands=['help'])
     def help_(message):
-        user_id = message.from_user.id
-        user = message.from_user
-        phone_number = spreadsheet_processor.get_phone_num_by_user_id(user_id)
-        user_role = spreadsheet_processor.get_user_role(phone_number, user)
+        help_message = '''
+        Ось декілька корисних команд, які ви можете використовувати:
+        /start - Початок роботи з ботом
+        /help - Вивести це повідомлення з інструкціями
+        /new - Створити нову заявку
 
-        if user_role == 'admin':
-            help_message = '''
-            Ось декілька корисних команд для Вас:
-            /start - початок роботи з ботом;
-            /blacklist - додати користувача у blacklist;
-            /admin - додати нового охоронця або адміністратора.
-            '''
-        elif user_role == 'guard':
-            help_message = '''
-            Ось декілька корисних команд для Вас:
-            /start - початок роботи з ботом;
-            '''
-        elif user_role == 'tenant':
-            help_message = '''
-            Ось декілька корисних команд для Вас:
-            /start - початок роботи з ботом;
-            /new - створити нову заявку;
-            '''
-        else:
-            help_message = "Вибачте, але ми не можемо визначити вашу роль. Зверніться до адміністратора або перезавантажте бот за допомогою команди /start"
+        Якщо у вас виникли додаткові питання або проблеми, будь ласка, зверніться до адміністратора.
+
+        Дякуємо за використання цього бота!
+        '''
 
         bot.send_message(message.chat.id, help_message)
 
@@ -649,12 +632,13 @@ def telegram_bot(token_value):
             if len(parts) != 2:
                 raise ValueError
             number = parts[1]
-
+            # Перевіряємо, чи є number коректним номером телефону.
+            # Якщо все в порядку, додаємо номер до blacklist
             spreadsheet_processor.add_to_blacklist(number)
             bot.send_message(message.chat.id, "Номер успішно додано до blacklist!")
         except ValueError:
             bot.send_message(message.chat.id,
-                             "Будь ласка, введіть номер у форматі: /blacklist [номер]")
+                             "Некоректний формат. Будь ласка, введіть номер у форматі: /blacklist [номер]")
 
     @bot.message_handler(commands=['admin'])
     def handle_admin_add_command(message):
@@ -665,12 +649,13 @@ def telegram_bot(token_value):
             number = parts[1]
             role = parts[2]
             surname = parts[3]
-
+            # Перевіряємо, чи є number коректним номером телефону, і чи є role валідною роллю.
+            # Якщо все в порядку, додаємо номер і роль до  листа admin_guard
             spreadsheet_processor.add_admin(number, role, surname)
             bot.send_message(message.chat.id, "Новий адмін/охоронець успішно доданий!")
         except ValueError:
             bot.send_message(message.chat.id,
-                             "Будь ласка, введіть дані у форматі: /admin [номер] [роль] [Прізвище]")
+                             "Некоректний формат. Будь ласка, введіть дані у форматі: \admin [номер] [роль] [Прізвище]")
 
     # Enable saving next step handlers to file "./.handlers-saves/step.save".
     # Delay=2 means that after any change in next step handlers (e.g. calling register_next_step_handler())
