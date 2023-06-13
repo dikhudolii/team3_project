@@ -2,7 +2,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from constants import CLAIM_SHEET_NAME, SECURITY_SHEET_NAME, \
-    USERS_SHEET_NAME, TENANTS_SHEET_NAME
+    USERS_SHEET_NAME, TENANTS_SHEET_NAME, BLACKLISTED_SHEET_NAME, DEBT_SHEET_NAME
 
 from gspread_formatting import get_data_validation_rule
 
@@ -52,6 +52,8 @@ spreadsheet_manager = SpreadsheetManager(
     'credentials.json')
 spreadsheet_manager.authenticate()
 tenants_values = spreadsheet_manager.get_values_from_worksheet(TENANTS_SHEET_NAME)
+security_data = spreadsheet_manager.get_data_from_worksheet(SECURITY_SHEET_NAME)
+security_values = spreadsheet_manager.get_values_from_worksheet(SECURITY_SHEET_NAME)
 
 
 def get_claims_from_excel():
@@ -88,7 +90,6 @@ def update_claim(number, processed_date, security_num, status):
 
 
 def get_securities():
-    security_data = spreadsheet_manager.get_data_from_worksheet(SECURITY_SHEET_NAME)
     return security_data
 
 
@@ -100,7 +101,7 @@ def get_tg_user_id_by_phone(phone):
 
 
 def get_kpp_options_from_spreadsheet():
-    kpp_data = spreadsheet_manager.get_worksheet('Авто на пропуск')
+    kpp_data = spreadsheet_manager.get_worksheet(CLAIM_SHEET_NAME)
     rule = get_data_validation_rule(kpp_data, 'G2')
 
     if rule:
@@ -110,15 +111,14 @@ def get_kpp_options_from_spreadsheet():
 
 
 def get_debt_data_from_spreadsheet():
-    debt_data = spreadsheet_manager.get_worksheet('debt')
+    debt_data = spreadsheet_manager.get_worksheet(DEBT_SHEET_NAME)
     return debt_data
 
 
 def get_admin_data_from_spreadsheet():
-    staff_data = spreadsheet_manager.get_worksheet('admin_guard').get_all_records()
     admin_numbers = []
 
-    for row in staff_data:
+    for row in security_data:
         if row['Role'] == 'admin':
             admin_numbers.append(row['Number'])
 
@@ -126,12 +126,12 @@ def get_admin_data_from_spreadsheet():
 
 
 def add_to_blacklist(number):
-    worksheet = spreadsheet_manager.get_worksheet('blacklisted_numbers')
+    worksheet = spreadsheet_manager.get_worksheet(BLACKLISTED_SHEET_NAME)
     worksheet.append_row([number])
 
 
 def add_user_id(phone_number, user_id, name):
-    worksheet = spreadsheet_manager.get_worksheet('telegram_users')
+    worksheet = spreadsheet_manager.get_worksheet(USERS_SHEET_NAME)
     if get_phone_num_by_user_id(user_id):
         return
 
@@ -139,56 +139,44 @@ def add_user_id(phone_number, user_id, name):
 
 
 def get_phone_num_by_user_id(user_id):
-    worksheet = spreadsheet_manager.get_worksheet('telegram_users').get_all_values()
+    worksheet = spreadsheet_manager.get_values_from_worksheet(USERS_SHEET_NAME)
     for row in worksheet:
         if str(user_id) == str(row[1]):
             return row[0]
 
 
 def get_name_by_user_id(user_id):
-    worksheet = spreadsheet_manager.get_worksheet('telegram_users').get_all_values()
+    worksheet = spreadsheet_manager.get_values_from_worksheet(USERS_SHEET_NAME)
     for row in worksheet:
         if str(user_id) == str(row[1]):
             return row[2]
 
 
 def add_admin(number, role, surname):
-    worksheet = spreadsheet_manager.get_worksheet('admin_guard')
+    worksheet = spreadsheet_manager.get_worksheet(SECURITY_SHEET_NAME)
     worksheet.append_row([number, role, surname])
 
 
-def get_data_from_spreadsheet():
-    blacklisted_sheet = spreadsheet_manager.get_worksheet('blacklisted_numbers')
-    blacklisted_data = blacklisted_sheet.get_all_records()
-
-    admin_guard_sheet = spreadsheet_manager.get_worksheet('admin_guard')
-    admin_guard_data = admin_guard_sheet.get_all_values()
-
-    return blacklisted_data, tenants_values, admin_guard_data
-
-
 def get_user_role(phone_number):
-    blacklisted_data, tenants_data, admin_guard_data = get_data_from_spreadsheet()
+    blacklisted_data = spreadsheet_manager.get_data_from_worksheet(BLACKLISTED_SHEET_NAME)
 
     for row in blacklisted_data:
         if str(row['number']) == phone_number:
             return "Blacklisted"
 
-    for row in tenants_data:
+    for row in tenants_values:
         if phone_number in list(map(str, row[3:9])):
             return "tenant"
 
-    for i, row in enumerate(admin_guard_data):
+    for i, row in enumerate(security_data):
         if str(row[0]) == phone_number:
-            return admin_guard_data[i][1]
+            return security_data[i][1]
 
     return None
 
 
 def get_apart_num(phone_number):
-    blacklisted_data, tenants_data, admin_guard_data = get_data_from_spreadsheet()
-
-    for i, row in enumerate(tenants_data):
+    for i, row in enumerate(tenants_values):
         if phone_number in row[3:9]:
             return row[0]
 
@@ -202,13 +190,11 @@ def check_debt(apartment_num):
 
 
 def get_guards_data():
-    admin_guard_sheet = spreadsheet_manager.get_worksheet('admin_guard')
-    admin_guard_data = admin_guard_sheet.get_all_values()
     guards_numbers = []
 
-    for i, row in enumerate(admin_guard_data):
-        if admin_guard_data[i][1] == "guard":
-            guards_numbers.append(admin_guard_data[i][0])
+    for i, row in enumerate(security_values):
+        if security_values[i][1] == "guard":
+            guards_numbers.append(security_values[i][0])
 
     return guards_numbers
 
@@ -248,12 +234,11 @@ def check_if_inhabitant(phone_number):
 
 
 def check_if_security(phone_number, check_security):
-    admin_guard_values = spreadsheet_manager.get_values_from_worksheet(SECURITY_SHEET_NAME)
     phone_number = phone_number.strip().replace("+", '')
-    for i, row in enumerate(admin_guard_values):
+    for i, row in enumerate(security_values):
         if str(row[0]) == phone_number:
-            if check_security and str(admin_guard_values[i][1]) == "admin":
+            if check_security and str(security_values[i][1]) == "admin":
                 return True
-            if not check_security and str(admin_guard_values[i][1]) == "guard":
+            if not check_security and str(security_values[i][1]) == "guard":
                 return True
     return False

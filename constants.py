@@ -16,6 +16,7 @@ CLAIM_LOCATION = "Геолокація"
 CLAIM_PHOTOIDS = "ФотоID"
 
 CLAIM_SHEET_NAME = "Авто на пропуск"
+DEBT_SHEET_NAME = "debt"
 
 FORMAT_STRING = "%d.%m.%Y %H:%M:%S"
 
