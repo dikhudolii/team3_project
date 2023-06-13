@@ -20,7 +20,7 @@ new_claim_dict = {}
 
 def initial_user_interface(role):
     if role == 'admin':
-        message = f'Вітаємо, {user.tg_name}. Ви є адміном.\n'\
+        message = f'Вітаємо, {user.tg_name}. Ви є адміном.\n' \
                   f"\n" \
                   f"Для ознайомлення з функціоналом боту натисніть /help. \n" \
                   f"\n" \
@@ -32,7 +32,7 @@ def initial_user_interface(role):
         keyboard.add(button_add_blacklisted)
         return message, keyboard
     if role == 'guard':
-        message = f'Вітаємо, {user.tg_name}. Ви є охоронцем.\n'\
+        message = f'Вітаємо, {user.tg_name}. Ви є охоронцем.\n' \
                   f"\n" \
                   f"Для ознайомлення з функціоналом боту натисніть /help. \n" \
                   f"\n" \
@@ -292,7 +292,6 @@ def telegram_bot(token_value):
         except Exception as e:
             bot.reply_to(message, 'Сервіс тимчасово недоступний')
 
-
     def process_kpp_step(message):
         try:
             chat_id = message.chat.id
@@ -452,8 +451,9 @@ def telegram_bot(token_value):
         phone = spreadsheet_processor.get_phone_num_by_user_id(chat_id)
         role = spreadsheet_processor.get_user_role(phone, user)
         only_new = str(message.text) == MENU_TODAY_CLAIMS
-        claims = get_claims(user.is_inhabitant,
-                            user.number,
+        is_inhabitant = role == 'tenant'
+        claims = get_claims(is_inhabitant,
+                            phone,
                             only_new=only_new)
 
         if len(claims) == 0:
