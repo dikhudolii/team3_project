@@ -367,7 +367,7 @@ def telegram_bot(token_value):
                 chat_id = message.chat.id
                 claim = new_claim_dict[chat_id]
                 claim_number = save_claim(claim)
-                bot.send_message(message.chat.id, f"Ваша заявка успішно збережена за номером {claim_number}",
+                bot.send_message(message.chat.id, f"Ваша заявка успішно збережена за номером {claim_number}.",
                                  reply_markup=result[1])
                 # get all security
                 # get all security user_ids

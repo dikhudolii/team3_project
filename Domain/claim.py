@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from constants import CLAIM_DESCRIPTION, CLAIM_NUM, CLAIM_PHONE_NUMBER, CLAIM_TYPE, CLAIM_VEHICLE_NUM, \
     CLAIM_CHECKPOINT, CLAIM_CREATED_DATE, CLAIM_STATUS, FORMAT_STRING, \
-    CLAIM_APARTMENT_NUMBER, CLAIM_VISITORS_DATA, CLAIM_LOCATION, CLAIM_PHOTOIDS
+    CLAIM_APARTMENT_NUMBER, CLAIM_VISITORS_DATA, CLAIM_LOCATION, CLAIM_PHOTOIDS, CLAIM_PROCESSED_DATE
 from spreadsheet_processor import get_claims_from_excel, add_claim_to_excel, get_last_claim_number_cell, delete_claim, \
     update_claim, get_photo_by_number
 
@@ -146,6 +146,7 @@ def convert_row_data_into_claim(row) -> Claim:
                  checkpoint=str(row[CLAIM_CHECKPOINT]),
                  description=str(row[CLAIM_DESCRIPTION]),
                  created_date=datetime.strptime(str(row[CLAIM_CREATED_DATE]), FORMAT_STRING),
+                 processed_date=datetime.strptime(str(row[CLAIM_PROCESSED_DATE]), FORMAT_STRING),
                  status=str(row[CLAIM_STATUS]),
                  geolocation=str(row[CLAIM_LOCATION]),
                  photo_ids=str(row[CLAIM_PHOTOIDS]))
