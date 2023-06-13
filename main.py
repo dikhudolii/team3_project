@@ -604,16 +604,31 @@ def telegram_bot(token_value):
 
     @bot.message_handler(commands=['help'])
     def help_(message):
-        help_message = '''
-        Ось декілька корисних команд, які ви можете використовувати:
-        /start - Початок роботи з ботом
-        /help - Вивести це повідомлення з інструкціями
-        /new - Створити нову заявку
+        user_id = message.from_user.id
+        user = message.from_user
+        phone_number = spreadsheet_processor.get_phone_num_by_user_id(user_id)
+        user_role = spreadsheet_processor.get_user_role(phone_number, user)
 
-        Якщо у вас виникли додаткові питання або проблеми, будь ласка, зверніться до адміністратора.
-
-        Дякуємо за використання цього бота!
-        '''
+        if user_role == 'admin':
+            help_message = '''
+            Ось декілька корисних команд для Вас:
+            /start - початок роботи з ботом;
+            /blacklist - додати користувача у blacklist;
+            /admin - додати нового охоронця або адміністратора.
+            '''
+        elif user_role == 'guard':
+            help_message = '''
+            Ось декілька корисних команд для Вас:
+            /start - початок роботи з ботом;
+            '''
+        elif user_role == 'tenant':
+            help_message = '''
+            Ось декілька корисних команд для Вас:
+            /start - початок роботи з ботом;
+            /new - створити нову заявку;
+            '''
+        else:
+            help_message = "Вибачте, але ми не можемо визначити вашу роль. Зверніться до адміністратора або перезавантажте бот за допомогою команди /start"
 
         bot.send_message(message.chat.id, help_message)
 
