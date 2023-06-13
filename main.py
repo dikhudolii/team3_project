@@ -523,7 +523,9 @@ def telegram_bot(token_value):
 
     @bot.message_handler(commands=['start'])
     def start(message):
-        if message.contact is None or message.contact.phone_number is None:
+        phone_number = spreadsheet_processor.get_phone_num_by_user_id(message.from_user.id)
+
+        if phone_number is None or len(phone_number) == 0:
             keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
             button = types.KeyboardButton(text="Відправити свій контакт", request_contact=True)
             keyboard.add(button)
@@ -532,12 +534,7 @@ def telegram_bot(token_value):
                              "Натисніть кнопку 'Відправити контакт' для передачі свого особистого контакту.",
                              reply_markup=keyboard)
         else:
-            contact = message.contact
-            phone_number = str(contact.phone_number)
             role = spreadsheet_processor.get_user_role(phone_number)
-
-            if role is not None:
-                spreadsheet_processor.add_user_id(contact.phone_number, contact.user_id)
 
             if role == 'tenant':
                 apartment_number = spreadsheet_processor.get_apart_num(phone_number)

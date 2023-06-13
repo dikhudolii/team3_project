@@ -13,16 +13,24 @@ class User:
         self.apartments = self.get_user_apart()
 
     def get_user_apart(self):
-        return get_apart_num(self.number)
+        if self.number is not None:
+            return get_apart_num(self.number)
+        return None
 
     def is_inhabitant(self):
-        return check_if_inhabitant(self.number)
+        if self.number is not None:
+            return check_if_inhabitant(self.number)
+        return False
 
     def is_security(self):
-        return check_if_security(self.number, True)
+        if self.number is not None:
+            return check_if_security(self.number, True)
+        return False
 
     def is_admin(self):
-        return check_if_security(self.number, False)
+        if self.number is not None:
+            return check_if_security(self.number, False)
+        return False
 
     def get_user_name(self):
         return get_name_by_user_id(self.id)

@@ -168,7 +168,7 @@ def get_user_role(phone_number):
         if phone_number in list(map(str, row[3:9])):
             return "tenant"
 
-    for i, row in enumerate(security_data):
+    for i, row in enumerate(security_values):
         if str(row[0]) == phone_number:
             return security_data[i][1]
 
