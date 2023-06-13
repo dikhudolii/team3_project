@@ -4,6 +4,7 @@ Implementation of the functions:
 - submitting applications from residents
 - processing them by a security guard
 -  system administration.
+  
 Roles:
 - tenant
 - guard
