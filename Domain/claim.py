@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from constants import CLAIM_DESCRIPTION, CLAIM_NUM, CLAIM_PHONE_NUMBER, CLAIM_TYPE, CLAIM_VEHICLE_NUM, \
-    CLAIM_CHECKPOINT, CLAIM_CREATED_DATE, CLAIM_PROCESSED_DATE, CLAIM_SECURITY_NUM, CLAIM_STATUS, FORMAT_STRING, \
+    CLAIM_CHECKPOINT, CLAIM_CREATED_DATE, CLAIM_STATUS, FORMAT_STRING, \
     CLAIM_APARTMENT_NUMBER, CLAIM_VISITORS_DATA, CLAIM_LOCATION, CLAIM_PHOTOIDS
 from spreadsheet_processor import get_claims_from_excel, add_claim_to_excel, get_last_claim_number_cell, delete_claim, \
     update_claim, get_photo_by_number
@@ -30,7 +30,7 @@ class CheckpointTypes(Enum):
 class Claim:
 
     def __init__(self, **kwargs):
-        '''
+        """
             number - generate number of claim
             phone_number - phone number of user
             claim_type -one of allowed claim types
@@ -40,7 +40,7 @@ class Claim:
             description - description of main goal of this claim
             created_date - date of claim creation
             status - one of the possible value from claim statuses
-        '''
+        """
         self.number = kwargs.pop('number', None)
         self.phone_number = kwargs.pop('phone_number', None)
         self.apartment_number = kwargs.pop('apartment_number', None)

@@ -3,10 +3,10 @@ from telebot import types
 import spreadsheet_processor
 from auth_file import token  # import token
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove, InputMediaPhoto
 from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses, reject_claim, Claim, ClaimTypes, \
     save_claim, get_claims_photo
-from Domain.user import User, get_user_id_by_phone
+from Domain.user import User
 
 from constants import SECURITY_ROLE, SECURITY_NUMBER, SECURITY_NAME, MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, \
     MENU_STATUS_CLAIMS, MENU_SECURITY_CONTACTS, MENU_APPROVE, MENU_REJECT, MENU_CHAT, MENU_CANCEL, MENU_PHOTO, \
@@ -14,13 +14,19 @@ from constants import SECURITY_ROLE, SECURITY_NUMBER, SECURITY_NAME, MENU_FULL_L
     CANCEL_TITLE
 from google_drive_photo import upload_photo_pdf
 
-user = User()
+users = {}
 new_claim_dict = {}
 
 
-def initial_user_interface(role):
+def initial_user_interface(role, user_id):
+    if user_id in users.keys():
+        user = users[user_id]
+    else:
+        user = User(user_id)
+        users[user_id] = user
+
     if role == 'admin':
-        message = f'Вітаємо, {user.tg_name}. Ви є адміном.\n'\
+        message = f'Вітаємо, {user.tg_name}. Ви є адміном.\n' \
                   f"\n" \
                   f"Для ознайомлення з функціоналом боту натисніть /help. \n" \
                   f"\n" \
@@ -32,7 +38,7 @@ def initial_user_interface(role):
         keyboard.add(button_add_blacklisted)
         return message, keyboard
     if role == 'guard':
-        message = f'Вітаємо, {user.tg_name}. Ви є охоронцем.\n'\
+        message = f'Вітаємо, {user.tg_name}. Ви є охоронцем.\n' \
                   f"\n" \
                   f"Для ознайомлення з функціоналом боту натисніть /help. \n" \
                   f"\n" \
@@ -43,8 +49,7 @@ def initial_user_interface(role):
         keyboard.add(button_list_of_claims, button_list_of_today_claims)
         return message, keyboard
     if role == 'tenant':
-        apartment_number = spreadsheet_processor.get_apart_num(user.number, user)
-        message = f"Вітаємо, {user.tg_name}. Ви є мешканцем квартири {apartment_number}. \n" \
+        message = f"Вітаємо, {user.tg_name}. Ви є мешканцем квартири {user.apartments}. \n" \
                   f"\n" \
                   f"Для ознайомлення з функціоналом боту натисніть /help. \n" \
                   f"\n" \
@@ -52,10 +57,10 @@ def initial_user_interface(role):
         keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
         button_new = types.KeyboardButton(text=MENU_NEW_CLAIM)
         button_list_of_claims = types.KeyboardButton(text=MENU_STATUS_CLAIMS)
-        button_receipt = types.KeyboardButton(text=MENU_RECEIPT)
+        # button_receipt = types.KeyboardButton(text=MENU_RECEIPT)
         button_contacts = types.KeyboardButton(text=MENU_SECURITY_CONTACTS)
-        keyboard.row(button_new, button_list_of_claims)
-        keyboard.row(button_receipt, button_contacts)
+        keyboard.add(button_new, button_list_of_claims, button_contacts)
+        # keyboard.row(button_receipt, button_contacts)
         return message, keyboard
 
     return 'Ви не маєте доступу до чат бота', None
@@ -94,7 +99,7 @@ def telegram_bot(token_value):
 
     @bot.message_handler(func=lambda message: message.text == CANCEL_TITLE)
     def cancel_creating_claim(message):
-        result = initial_user_interface("tenant")
+        result = initial_user_interface("tenant", message.from_user.id)
         bot.send_message(message.chat.id, "Оберіть одну з доступних опцій:", reply_markup=result[1])
 
     # Code from Angela's github
@@ -103,8 +108,8 @@ def telegram_bot(token_value):
                                               TYPE_OTHER])
     def handle_request_type(message):
         request_type = message.text
-        apartment_number = spreadsheet_processor.get_apart_num(user.number, user)
-        new_claim = Claim.create_new(user.number, apartment_number)
+        user = users[message.from_user.id]
+        new_claim = Claim.create_new(user.number, user.apartments)
         chat_id = message.chat.id
 
         match request_type:
@@ -290,7 +295,6 @@ def telegram_bot(token_value):
         except Exception as e:
             bot.reply_to(message, 'Сервіс тимчасово недоступний')
 
-
     def process_kpp_step(message):
         try:
             chat_id = message.chat.id
@@ -324,19 +328,19 @@ def telegram_bot(token_value):
             chat_id = message.chat.id
             claim = new_claim_dict[chat_id]
             if message.content_type == 'photo':
-                file_info = bot.get_file(message.photo[-1].file_id)
-                claim.photos = [file_info]
                 file_id = message.photo[-1].file_id
-                claim.photos = [file_id]
+                if claim.photos is not None:
+                    claim.photos.append(file_id)
+                else:
+                    claim.photos = [file_id]
             if message.content_type == 'location':
                 location = message.location
                 claim.geolocation = f"{location.latitude};{location.longitude}"
-
             text = message.text
             if message.content_type == 'photo' or (text is not None and text == "Без фото"):
                 markup = simple_reply_markup(1, ["Без геолокації"])
                 msg = bot.send_message(chat_id,
-                                       f"Додайте геолокацію до вашої заявки",
+                                       f"Завантажити ще фото або геолокацію до вашої заявки",
                                        reply_markup=markup)
                 bot.register_next_step_handler(msg, process_add_photo_claim_step)
                 return
@@ -354,7 +358,7 @@ def telegram_bot(token_value):
     def process_save_claim_step(message):
         try:
             answer = message.text
-            result = initial_user_interface("tenant")
+            result = initial_user_interface("tenant", message.from_user.id)
             if answer == 'Так':
                 chat_id = message.chat.id
                 claim = new_claim_dict[chat_id]
@@ -370,9 +374,20 @@ def telegram_bot(token_value):
                     bot.send_message(chat_id=user_id,
                                      text=f"Нова заявка:\n {claim}")
                     if claim.photos is not None and len(claim.photos) > 0:
-                        bot.send_photo(chat_id=user_id,
-                                       photo=claim.photos[0],
-                                       caption=f"Фото до заявки {claim.number}")
+                        if len(claim.photos) == 1:
+                            bot.send_photo(chat_id=user_id,
+                                           photo=claim.photos[0],
+                                           caption=f"Фото до заявки {claim.number}")
+                        else:
+                            all_photos = []
+
+                            for file_id in claim.photos:
+                                media_photo = InputMediaPhoto(media=file_id)
+                                all_photos.append(media_photo)
+
+                            bot.send_media_group(user_id,
+                                                 all_photos)
+
                     if claim.geolocation is not None:
                         coordinates = str(claim.geolocation).split(";")
                         bot.send_location(chat_id=user_id,
@@ -412,7 +427,7 @@ def telegram_bot(token_value):
                 bot.send_message(call.message.chat.id,
                                  f"Ви успішно видалили заявку № {claim_id}")
             case "chat":
-                user_id = get_user_id_by_phone(additional_parameter)
+                user_id = spreadsheet_processor.get_user_id_by_phone_num(additional_parameter)
                 try:
                     bot.send_message(chat_id=user_id, text=f"Добрий день! Вас турбує охорона ЖК")
                 except Exception as e:
@@ -438,6 +453,7 @@ def telegram_bot(token_value):
     def get_list_of_claims(message):
 
         only_new = str(message.text) == MENU_TODAY_CLAIMS
+        user = users[message.from_user.id]
         claims = get_claims(user.is_inhabitant,
                             user.number,
                             only_new=only_new)
@@ -499,11 +515,10 @@ def telegram_bot(token_value):
                                      reply_markup=markup_inline)
                 else:
                     bot.send_message(message.chat.id,
-                                     f"{claim}")
+                                     f"Опрацьовано в {claim.processed_date}: {claim}")
 
     @bot.message_handler(commands=['start'])
     def start(message):
-        user.tg_name = message.from_user.full_name
         if message.contact is None or message.contact.phone_number is None:
             keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
             button = types.KeyboardButton(text="Відправити свій контакт", request_contact=True)
@@ -515,13 +530,13 @@ def telegram_bot(token_value):
         else:
             contact = message.contact
             phone_number = str(contact.phone_number)
-            role = spreadsheet_processor.get_user_role(phone_number, user)
+            role = spreadsheet_processor.get_user_role(phone_number)
 
             if role is not None:
                 spreadsheet_processor.add_user_id(contact.phone_number, contact.user_id)
 
             if role == 'tenant':
-                apartment_number = spreadsheet_processor.get_apart_num(phone_number, user)
+                apartment_number = spreadsheet_processor.get_apart_num(phone_number)
                 debt = spreadsheet_processor.check_debt(apartment_number)
 
                 if debt > 240:
@@ -529,29 +544,27 @@ def telegram_bot(token_value):
                                      f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
                     return
 
-            answer = initial_user_interface(role)
+            answer = initial_user_interface(role, message.from_user.id)
             bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
 
     @bot.message_handler(content_types=['contact'])
     def handle_contact(message):
-        user.tg_name = message.from_user.full_name
-
         contact = message.contact
-        phone_number = str(contact.phone_number)
+        phone_number = str(contact.phone_number).replace("+", "")
 
         # phone_number = str("380951993971")
         # phone_number = "380849784670"
         # phone_number = "380799761264" # - тест борг
-        # phone_number = "380849784670"  # - тест мешканця
+        phone_number = "380849784670"  # - тест мешканця
         # phone_number = "87654321"     # - тест охоронця
 
-        role = spreadsheet_processor.get_user_role(phone_number, user)
+        role = spreadsheet_processor.get_user_role(phone_number)
 
         if role is not None:
-            spreadsheet_processor.add_user_id(contact.phone_number, contact.user_id)
+            spreadsheet_processor.add_user_id(phone_number, contact.user_id)
 
         if role == 'tenant':
-            apartment_number = spreadsheet_processor.get_apart_num(phone_number, user)
+            apartment_number = spreadsheet_processor.get_apart_num(phone_number)
             debt = spreadsheet_processor.check_debt(apartment_number)
 
             if debt > 240:
@@ -559,7 +572,7 @@ def telegram_bot(token_value):
                                  f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
                 return
 
-        answer = initial_user_interface(role)
+        answer = initial_user_interface(role, message.from_user.id)
         bot.send_message(message.chat.id, answer[0], reply_markup=answer[1])
 
     @bot.message_handler(func=lambda message: message.text == MENU_RECEIPT)
@@ -580,11 +593,11 @@ def telegram_bot(token_value):
             file_info = bot.get_file(message.photo[-1].file_id)
 
         phone_number = spreadsheet_processor.get_phone_num_by_user_id(message.from_user.id)
-        apartment_number = spreadsheet_processor.get_apart_num(phone_number, user)
+        apartment_number = spreadsheet_processor.get_apart_num(phone_number)
 
         admin_numbers = spreadsheet_processor.get_admin_data_from_spreadsheet()
         for number in admin_numbers:
-            admin_id = get_user_id_by_phone(number)
+            admin_id = spreadsheet_processor.get_user_id_by_phone_num(number)
 
             if admin_id is None:
                 continue
@@ -605,9 +618,8 @@ def telegram_bot(token_value):
     @bot.message_handler(commands=['help'])
     def help_(message):
         user_id = message.from_user.id
-        user = message.from_user
         phone_number = spreadsheet_processor.get_phone_num_by_user_id(user_id)
-        user_role = spreadsheet_processor.get_user_role(phone_number, user)
+        user_role = spreadsheet_processor.get_user_role(phone_number)
 
         if user_role == 'admin':
             help_message = '''

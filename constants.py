@@ -41,6 +41,8 @@ TYPE_OTHER = "Заявка на інше"
 CANCEL_TITLE = "Скасувати"
 
 USERS_SHEET_NAME = "telegram_users"
+BLACKLISTED_SHEET_NAME = "blacklisted_numbers"
+TENANTS_SHEET_NAME = "tenants"
 
 MENU_APPROVE = "Підтвердити"
 MENU_REJECT = "Відхилити"

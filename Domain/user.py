@@ -1,27 +1,28 @@
-from spreadsheet_processor import get_tg_user_id_by_phone, get_tg_phone_by_user_id
+from spreadsheet_processor import check_if_security, check_if_inhabitant, get_apart_num, get_phone_num_by_user_id
+
+
+def get_user_name():
+    return "TestName"  # get_name_by_user_id(self.id)
 
 
 class User:
-    def __init__(self):
-        self.id = None
-        self.number = None
-        self.flats = []
-        self.is_inhabitant = False
-        self.is_security = False
-        self.is_blacklisted = False
-        self.tg_name = ""
-        self.apartments = []
+    def __init__(self, user_id):
+        self.id = user_id
+        self.number = get_phone_num_by_user_id(self.id)
+        self.is_inhabitant = self.is_inhabitant()
+        self.is_security = self.is_security()
+        self.is_blacklisted = None
+        self.tg_name = get_user_name()
+        self.apartments = self.get_user_apart()
 
-    def set_id(self, _id):
-        self.id = _id
+    def get_user_apart(self):
+        return get_apart_num(self.number)
 
-    def set_number(self, number):
-        self.number = number
+    def is_inhabitant(self):
+        return check_if_inhabitant(self.number)
 
+    def is_security(self):
+        return check_if_security(self.number, True)
 
-def get_phone_by_id(user_id):
-    return get_tg_phone_by_user_id(user_id)
-
-
-def get_user_id_by_phone(number):
-    return get_tg_user_id_by_phone(number)
+    def is_admin(self):
+        return check_if_security(self.number, False)
