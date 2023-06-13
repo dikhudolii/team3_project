@@ -101,8 +101,12 @@ def telegram_bot(token_value):
                                               TYPE_OTHER])
     def handle_request_type(message):
         request_type = message.text
-        apartment_number = spreadsheet_processor.get_apart_num(user.number, user)
-        new_claim = Claim.create_new(user.number, apartment_number)
+
+        chat_id = message.chat.id
+        phone = spreadsheet_processor.get_phone_num_by_user_id(chat_id)
+
+        apartment_number = spreadsheet_processor.get_apart_num(phone, user)
+        new_claim = Claim.create_new(phone, apartment_number)
         chat_id = message.chat.id
 
         match request_type:
@@ -444,6 +448,9 @@ def telegram_bot(token_value):
     @bot.message_handler(
         func=lambda message: message.text in [MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, MENU_STATUS_CLAIMS])
     def get_list_of_claims(message):
+        chat_id = message.chat.id
+        phone = spreadsheet_processor.get_phone_num_by_user_id(chat_id)
+        role = spreadsheet_processor.get_user_role(phone, user)
         only_new = str(message.text) == MENU_TODAY_CLAIMS
         claims = get_claims(user.is_inhabitant,
                             user.number,
@@ -456,7 +463,7 @@ def telegram_bot(token_value):
         # processing claims
         for claim in claims:
             # if user is security he would have more options to do with claim
-            if user.is_security:
+            if role == 'guard':
                 if claim.status == ClaimStatuses.New.value:
                     markup_inline = InlineKeyboardMarkup(row_width=2)
                     item_approve = InlineKeyboardButton(
@@ -491,7 +498,7 @@ def telegram_bot(token_value):
                                      f"{claim}")
 
             # if user is inhabitant he could only cancel claim in case it in status New
-            elif user.is_inhabitant:
+            elif role == 'tenant':
                 if claim.status == ClaimStatuses.New.value:
 
                     markup_inline = InlineKeyboardMarkup()
@@ -505,7 +512,7 @@ def telegram_bot(token_value):
                                      reply_markup=markup_inline)
                 else:
                     bot.send_message(message.chat.id,
-                                     f"Опрацьовано: {claim.processed_date} {claim}")
+                                     f"{claim.status}: {claim.processed_date} {claim}")
 
     @bot.message_handler(commands=['start'])
     def start(message):
@@ -554,7 +561,7 @@ def telegram_bot(token_value):
         role = spreadsheet_processor.get_user_role(phone_number, user)
 
         if role is not None:
-            spreadsheet_processor.add_user_id(contact.phone_number, contact.user_id, message.chat.id)
+            spreadsheet_processor.add_user_id(contact.phone_number, contact.user_id)
 
         if role == 'tenant':
             apartment_number = spreadsheet_processor.get_apart_num(phone_number, user)
