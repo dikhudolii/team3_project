@@ -18,13 +18,17 @@ users = {}
 new_claim_dict = {}
 
 
-def initial_user_interface(role, user_id):
+def get_user(user_id):
     if user_id in users.keys():
         user = users[user_id]
     else:
         user = User(user_id)
         users[user_id] = user
+    return user
 
+
+def initial_user_interface(role, user_id):
+    user = get_user(user_id)
     if role == 'admin':
         message = f'Вітаємо, {user.tg_name}. Ви є адміном.\n' \
                   f"\n" \
@@ -108,7 +112,7 @@ def telegram_bot(token_value):
                                               TYPE_OTHER])
     def handle_request_type(message):
         request_type = message.text
-        user = users[message.from_user.id]
+        user = get_user(message.from_user.id)
         new_claim = Claim.create_new(user.number, user.apartments)
         chat_id = message.chat.id
 
@@ -453,7 +457,7 @@ def telegram_bot(token_value):
     def get_list_of_claims(message):
 
         only_new = str(message.text) == MENU_TODAY_CLAIMS
-        user = users[message.from_user.id]
+        user = get_user(message.from_user.id)
         claims = get_claims(user.is_inhabitant,
                             user.number,
                             only_new=only_new)
