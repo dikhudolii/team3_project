@@ -1,8 +1,5 @@
-from spreadsheet_processor import check_if_security, check_if_inhabitant, get_apart_num, get_phone_num_by_user_id
-
-
-def get_user_name():
-    return "TestName"  # get_name_by_user_id(self.id)
+from spreadsheet_processor import check_if_security, check_if_inhabitant, get_apart_num, get_phone_num_by_user_id, \
+    get_name_by_user_id
 
 
 class User:
@@ -12,7 +9,7 @@ class User:
         self.is_inhabitant = self.is_inhabitant()
         self.is_security = self.is_security()
         self.is_blacklisted = None
-        self.tg_name = get_user_name()
+        self.tg_name = self.get_user_name()
         self.apartments = self.get_user_apart()
 
     def get_user_apart(self):
@@ -26,3 +23,7 @@ class User:
 
     def is_admin(self):
         return check_if_security(self.number, False)
+
+    def get_user_name(self):
+        return get_name_by_user_id(self.id)
+

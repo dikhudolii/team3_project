@@ -130,12 +130,12 @@ def add_to_blacklist(number):
     worksheet.append_row([number])
 
 
-def add_user_id(phone_number, user_id):
+def add_user_id(phone_number, user_id, name):
     worksheet = spreadsheet_manager.get_worksheet('telegram_users')
     if get_phone_num_by_user_id(user_id):
         return
 
-    worksheet.append_row([phone_number, user_id])
+    worksheet.append_row([phone_number, user_id, name])
 
 
 def get_phone_num_by_user_id(user_id):
@@ -145,13 +145,19 @@ def get_phone_num_by_user_id(user_id):
             return row[0]
 
 
+def get_name_by_user_id(user_id):
+    worksheet = spreadsheet_manager.get_worksheet('telegram_users').get_all_values()
+    for row in worksheet:
+        if str(user_id) == str(row[1]):
+            return row[2]
+
+
 def add_admin(number, role, surname):
     worksheet = spreadsheet_manager.get_worksheet('admin_guard')
     worksheet.append_row([number, role, surname])
 
 
 def get_data_from_spreadsheet():
-
     blacklisted_sheet = spreadsheet_manager.get_worksheet('blacklisted_numbers')
     blacklisted_data = blacklisted_sheet.get_all_records()
 

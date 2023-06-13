@@ -555,13 +555,16 @@ def telegram_bot(token_value):
         # phone_number = str("380951993971")
         # phone_number = "380849784670"
         # phone_number = "380799761264" # - тест борг
-        phone_number = "380849784670"  # - тест мешканця
+        # phone_number = "380849784670"  # - тест мешканця
         # phone_number = "87654321"     # - тест охоронця
 
         role = spreadsheet_processor.get_user_role(phone_number)
 
         if role is not None:
-            spreadsheet_processor.add_user_id(phone_number, contact.user_id)
+            name = message.from_user.first_name
+            if message.from_user.last_name is not None:
+                name += f" {message.from_user.last_name}"
+            spreadsheet_processor.add_user_id(phone_number, contact.user_id, name)
 
         if role == 'tenant':
             apartment_number = spreadsheet_processor.get_apart_num(phone_number)
