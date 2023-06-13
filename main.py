@@ -6,11 +6,11 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove, InputMediaPhoto
 from Domain.claim import get_claims, to_process_claim, cancel_claim, ClaimStatuses, reject_claim, Claim, ClaimTypes, \
     save_claim, get_claims_photo
-from Domain.user import User, get_user_id_by_phone
+from Domain.user import User
 
 from constants import SECURITY_ROLE, SECURITY_NUMBER, SECURITY_NAME, MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, \
     MENU_STATUS_CLAIMS, MENU_SECURITY_CONTACTS, MENU_APPROVE, MENU_REJECT, MENU_CHAT, MENU_CANCEL, MENU_PHOTO, \
-    MENU_LOCATION, MENU_RECEIPT, MENU_NEW_CLAIM, TYPE_TAXI, TYPE_PARKING, TYPE_GUESTS, TYPE_DELIVERY, TYPE_OTHER, \
+    MENU_LOCATION, MENU_NEW_CLAIM, TYPE_TAXI, TYPE_PARKING, TYPE_GUESTS, TYPE_DELIVERY, TYPE_OTHER, \
     CANCEL_TITLE
 from google_drive_photo import upload_photo_pdf
 
@@ -423,7 +423,7 @@ def telegram_bot(token_value):
                 bot.send_message(call.message.chat.id,
                                  f"Ви успішно видалили заявку № {claim_id}")
             case "chat":
-                user_id = get_user_id_by_phone(additional_parameter)
+                user_id = spreadsheet_processor.get_user_id_by_phone_num(additional_parameter)
                 try:
                     bot.send_message(chat_id=user_id, text=f"Добрий день! Вас турбує охорона ЖК")
                 except Exception as e:
@@ -591,7 +591,7 @@ def telegram_bot(token_value):
 
         admin_numbers = spreadsheet_processor.get_admin_data_from_spreadsheet()
         for number in admin_numbers:
-            admin_id = get_user_id_by_phone(number)
+            admin_id = spreadsheet_processor.get_user_id_by_phone_num(number)
 
             if admin_id is None:
                 continue
