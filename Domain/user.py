@@ -27,4 +27,3 @@ class User:
     def get_user_name(self):
         return get_name_by_user_id(self.id)
 
-

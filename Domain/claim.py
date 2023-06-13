@@ -137,6 +137,9 @@ def convert_claim_into_row_data(claim: Claim):
 
 
 def convert_row_data_into_claim(row) -> Claim:
+    processed_date = datetime.strptime(str(row.get(CLAIM_PROCESSED_DATE, "")),
+                                       FORMAT_STRING) if row.get(CLAIM_PROCESSED_DATE) else None
+
     return Claim(number=int(row[CLAIM_NUM]),
                  phone_number=str(row[CLAIM_PHONE_NUMBER]),
                  apartment_number=str(row[CLAIM_APARTMENT_NUMBER]),
@@ -146,7 +149,7 @@ def convert_row_data_into_claim(row) -> Claim:
                  checkpoint=str(row[CLAIM_CHECKPOINT]),
                  description=str(row[CLAIM_DESCRIPTION]),
                  created_date=datetime.strptime(str(row[CLAIM_CREATED_DATE]), FORMAT_STRING),
-                 processed_date=datetime.strptime(str(row[CLAIM_PROCESSED_DATE]), FORMAT_STRING),
+                 processed_date=processed_date,
                  status=str(row[CLAIM_STATUS]),
                  geolocation=str(row[CLAIM_LOCATION]),
                  photo_ids=str(row[CLAIM_PHOTOIDS]))
