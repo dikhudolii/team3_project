@@ -436,7 +436,8 @@ def telegram_bot(token_value):
     @bot.message_handler(
         func=lambda message: message.text in [MENU_FULL_LIST_OF_CLAIMS, MENU_TODAY_CLAIMS, MENU_STATUS_CLAIMS])
     def get_list_of_claims(message):
-
+        user_phone = spreadsheet_processor.get_phone_num_by_user_id(message.chat.id)
+        role = spreadsheet_processor.get_user_role(user_phone, user)
         only_new = str(message.text) == MENU_TODAY_CLAIMS
         claims = get_claims(user.is_inhabitant,
                             user.number,
@@ -449,9 +450,8 @@ def telegram_bot(token_value):
         # processing claims
         for claim in claims:
             # if user is security he would have more options to do with claim
-            if user.is_security:
+            if role == 'guard':
                 if claim.status == ClaimStatuses.New.value:
-
                     markup_inline = InlineKeyboardMarkup(row_width=2)
                     item_approve = InlineKeyboardButton(
                         text=MENU_APPROVE,
@@ -485,7 +485,7 @@ def telegram_bot(token_value):
                                      f"{claim}")
 
             # if user is inhabitant he could only cancel claim in case it in status New
-            elif user.is_inhabitant:
+            elif role == 'tenant':
                 if claim.status == ClaimStatuses.New.value:
 
                     markup_inline = InlineKeyboardMarkup()
@@ -526,7 +526,7 @@ def telegram_bot(token_value):
 
                 if debt > 240:
                     bot.send_message(message.chat.id,
-                                     f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
+                                     f'У вас заборгованість {debt} гривень, зверніться до адміністратора або завантажте квитанцію про оплату.')
                     return
 
             answer = initial_user_interface(role)
@@ -556,7 +556,7 @@ def telegram_bot(token_value):
 
             if debt > 240:
                 bot.send_message(message.chat.id,
-                                 f'У вас заборгованість {debt}, зверніться до адміністратора або завантажте квитанцію про оплату.')
+                                 f'У вас заборгованість {debt} гривень, зверніться до адміністратора або завантажте квитанцію про оплату.')
                 return
 
         answer = initial_user_interface(role)
